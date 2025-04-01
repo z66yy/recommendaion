@@ -16,6 +16,10 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# 确保logs目录存在
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # Media files (Images, etc)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -93,6 +97,11 @@ WSGI_APPLICATION = 'mvrecommend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# MySQL路径设置 - 使用相对路径，提高可移植性
+# 如果要使用绝对路径，取消注释下面的行并修改为你的MySQL路径
+# MYSQL_BASE_DIR = 'D:/pycharm/pythonProject2/movierecommends/mysql-9.2.0-winx64'
+MYSQL_BASE_DIR = os.path.join(BASE_DIR, 'mysql-9.2.0-winx64')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -125,10 +134,13 @@ DATABASE_RETRY_COUNT = 3  # 重试次数
 DATABASE_RETRY_DELAY = 1  # 重试延迟（秒）
 
 # 缓存配置
+CACHE_DIR = os.path.join(BASE_DIR, 'cache')
+os.makedirs(CACHE_DIR, exist_ok=True)
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': os.path.join(BASE_DIR, 'cache'),
+        'LOCATION': CACHE_DIR,
         'TIMEOUT': 60 * 60 * 24 * 30,  # 30天
         'OPTIONS': {
             'MAX_ENTRIES': 10000
@@ -265,13 +277,13 @@ LOGGING = {
         'db_file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'db_pool.log'),
+            'filename': os.path.join(LOG_DIR, 'db_pool.log'),
             'formatter': 'verbose',
         },
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'image_proxy.log'),
+            'filename': os.path.join(LOG_DIR, 'image_proxy.log'),
             'formatter': 'verbose',
         },
     },

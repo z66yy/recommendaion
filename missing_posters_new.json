@@ -1,0 +1,37 @@
+{
+  "total": 67132,
+  "has_posters": 67129,
+  "missing_posters": [
+    {
+      "movie_id": 21356407,
+      "title": "梦犯",
+      "original_title": "夢犯",
+      "year": 1985,
+      "collect_count": 211,
+      "rating": "{'max': 10, 'average': 6.6, 'details': {'1': 6.0, '3': 36.0, '2': 12.0, '5': 11.0, '4': 30.0}, 'stars': '35', 'min': 0}",
+      "image_url": "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2545704299.jpg",
+      "reason": "本地文件不存在"
+    },
+    {
+      "movie_id": 27666649,
+      "title": "格闘姫陥落 火鷹舞",
+      "original_title": "格闘姫陥落 火鷹舞",
+      "year": 2018,
+      "collect_count": 50,
+      "rating": "{'max': 10, 'average': 0, 'details': {'1': 0, '3': 0, '2': 0, '5': 0, '4': 0}, 'stars': '00', 'min': 0}",
+      "image_url": "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2510773359.jpg",
+      "reason": "本地文件不存在"
+    },
+    {
+      "movie_id": 27126392,
+      "title": "我妻子的谎言",
+      "original_title": "我妻子的谎言",
+      "year": 2017,
+      "collect_count": 19,
+      "rating": "{'max': 10, 'average': 0, 'details': {'1': 0, '3': 0, '2': 0, '5': 0, '4': 0}, 'stars': '00', 'min': 0}",
+      "image_url": "https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2497889608.jpg",
+      "reason": "本地文件不存在"
+    }
+  ],
+  "errors": []
+}
