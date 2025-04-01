@@ -2,6 +2,9 @@
 
 基于Django开发的电影推荐系统，使用协同过滤和基于内容的推荐算法，为用户提供个性化电影推荐服务。
 
+##电影海报及MySQL数据
+https://pan.baidu.com/s/14xd6SYCHKnFZx9piJKsHsw?pwd=figf 提取码: figf
+
 ## 功能特点
 
 - 电影搜索与浏览
