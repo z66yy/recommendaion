@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}电影列表 - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.default-poster {
+    background: linear-gradient(45deg, #2196F3, #3F51B5);
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+    padding: 1rem;
+    min-height: 350px;
+}
+.default-poster .movie-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+.default-poster .movie-year {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+.star-rating {
+    color: #ffc107;
+    font-size: 14px;
+}
+.film-card {
+    transition: transform 0.2s;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.film-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+/* 图片淡入效果 */
+.fade-in-image {
+    opacity: 1;
+    transition: opacity 0.5s ease-in-out;
+}
+/* 占位符样式 */
+.poster-placeholder {
+    background-color: #e0e0e0;
+    position: relative;
+    overflow: hidden;
+}
+.poster-placeholder::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    animation: placeholder-shimmer 1.5s infinite;
+}
+@keyframes placeholder-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+.category-header {
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+.compact-card .card-body {
+    padding: 0.75rem;
+}
+.compact-card .card-title {
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.compact-card .star-rating {
+    font-size: 0.85rem;
+}
+.compact-card .card-text {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+.compact-card .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1 class="category-header">{{ selectedGenre|default:"所有电影" }}</h1>
+            
+            <!-- 排序和筛选控制区 -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+                <!-- 类型过滤器 -->
+                <div class="dropdown mb-3 mb-md-0">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="genreDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        电影类型
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="genreDropdown" style="max-height: 300px; overflow-y: auto;">
+                        <li><a class="dropdown-item {% if not selectedGenre %}active{% endif %}" href="{% url 'movies:movie_list' %}">全部</a></li>
+                        {% for genre in genres %}
+                        {% if genre.name %}
+                        <li><a class="dropdown-item {% if genre.name == selectedGenre %}active{% endif %}" href="{% url 'movies:movie_list_by_genre' genre.name %}">{{ genre.name }}</a></li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                <!-- 排序选项 -->
+                <div class="btn-group" role="group">
+                    <a href="?sort=rating" class="btn btn-sm btn-outline-secondary {% if request.GET.sort == 'rating' or not request.GET.sort %}active{% endif %}">评分</a>
+                    <a href="?sort=year" class="btn btn-sm btn-outline-secondary {% if request.GET.sort == 'year' %}active{% endif %}">年份</a>
+                    <a href="?sort=title" class="btn btn-sm btn-outline-secondary {% if request.GET.sort == 'title' %}active{% endif %}">标题</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 电影网格 -->
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+        {% for movie in movies %}
+        <div class="col">
+            <div class="card film-card compact-card h-100">
+                <a href="{% url 'movies:movie_detail' movie.movie_id %}" class="text-decoration-none">
+                    {% if movie.cover_image %}
+                    <div class="poster-container" style="height: 250px;">
+                        <div class="poster-placeholder" style="height: 100%; width: 100%;"></div>
+                        <img 
+                            src="{% url 'movies:image_proxy' movie.cover_image|urlencode %}?local=true&title={{ movie.title|urlencode }}&movie_id={{ movie.movie_id }}" 
+                            alt="{{ movie.title }}"
+                            style="height: 250px; object-fit: cover; width: 100%;"
+                            class="fade-in-image"
+                            data-default="{% url 'movies:image_proxy' 'default'|urlencode %}?title={{ movie.title|urlencode }}"
+                            onload="this.classList.add('loaded')"
+                            onerror="this.onerror=null; this.src=this.getAttribute('data-default')">
+                    </div>
+                    {% else %}
+                    <div class="default-poster" style="height: 250px;">
+                        <div class="movie-title">{{ movie.title }}</div>
+                        <div class="movie-year">{{ movie.year }}</div>
+                    </div>
+                    {% endif %}
+                </a>
+                <div class="card-body">
+                    <h5 class="card-title" title="{{ movie.title }}">{{ movie.title }}</h5>
+                    <div class="star-rating mb-2">
+                        {% with rating=movie.rating|default:0 %}
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= rating %}
+                            <i class="mdi mdi-star"></i>
+                            {% elif forloop.counter <= rating|add:0.5 %}
+                            <i class="mdi mdi-star-half-full"></i>
+                            {% else %}
+                            <i class="mdi mdi-star-outline"></i>
+                            {% endif %}
+                        {% endfor %}
+                        <span class="ms-1 text-muted">{{ movie.rating|default:0 }}</span>
+                        {% endwith %}
+                    </div>
+                    <p class="card-text text-muted">{{ movie.year }}</p>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5">
+            <p class="lead">没有找到符合条件的电影</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- 分页控件 -->
+    {% if page_obj.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination pagination-sm justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}" aria-label="First">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" aria-label="First">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for i in paginator.page_range %}
+                        {% if page_obj.number == i %}
+                        <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
+                        {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                        <li class="page-item"><a class="page-link" href="?page={{ i }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">{{ i }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}" aria-label="Last">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" aria-label="Last">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 预加载高优先级图片
+    const images = document.querySelectorAll('.poster-container img');
+    images.forEach(img => {
+        img.onload = function() {
+            // 图片加载完成后，移除占位符效果
+            const placeholderDiv = this.previousElementSibling;
+            if (placeholderDiv && placeholderDiv.classList.contains('poster-placeholder')) {
+                placeholderDiv.style.display = 'none';
+            }
+            // 显示图片
+            this.style.display = 'block';
+        };
+        
+        // 如果图片已加载完成
+        if (img.complete) {
+            img.onload();
+        }
+    });
+});
+</script>
+{% endblock %} 

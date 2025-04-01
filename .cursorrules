@@ -1,0 +1,225 @@
+#项目目标：
+基于django开发一个电影推荐系统，本项目的需求参考NOTEPAD下的本项目需求.txt
+本项目要求本地运行，不使用docker
+使用cmd和powershell时分布执行,使用cmd和powershell时使用管理员权限，不使用&&
+尽量修改原有程序，不要新增文件，除非必要、
+
+
+# 项目代码规范和规则
+使用python3.8开发
+django版本：4.2.20
+django项目名：mvrecommend
+推荐算法使用spark mlib
+虚拟环境启动：conda activate tensorflow
+计算相似度时，使用spark mlib的ALS算法，数据集使用movie_collectmoviedb表
+电影海报数据已保存在media/movie_posters中
+
+推荐权重：
+1. 类型相似度 (权重: 0.4)
+通过比较两部电影的类型（genres）计算
+计算方法：共同类型数量 / 两部电影类型的最大数量
+这是相似度计算中权重最高的维度
+2. 导演相似度 (权重: 0.1)
+通过比较两部电影的导演（directors）
+计算方法：共同导演数量 / 两部电影导演的最大数量
+3. 演员相似度 (权重: 0.1)
+通过比较两部电影的演员（actors）
+计算方法：共同演员数量 / 两部电影演员的最大数量
+4. 标签相似度 (权重: 0.4)
+通过比较两部电影的标签（tags）
+计算方法：共同标签数量 / 两部电影标签的最大数量
+
+
+# 编码规范
+charset = utf-8
+
+# 数据库规范
+使用mysql数据库
+数据库已存在，不需要创建
+数据库名：movierecommendation
+mysql位置：D:\pycharm\pythonProject2\movierecommends\mysql-9.2.0-winx64
+数据库位置：D:\pycharm\pythonProject2\movierecommends\mysql-9.2.0-winx64\data\movierecommendation
+数据库包含的内容参考D:\pycharm\pythonProject2\movierecommends\moviedata中的sql文件
+用户名：root
+密码：123
+主机：localhost
+端口：3306
+mysql登录命令：mysql -u root -p'123'
+数据库中已导入的movie_collectmoviedb,movie_collectmovietypedb和movie_collecttop250moviedb，movie_moviepubdatedb，movie_movieratingdb，movie_movietagdb，中存储着电影数据
+movie_collectmoviedb结构：
+| id               | int           | NO   | PRI | NULL    | auto_increment |
+| movie_id         | int           | NO   | UNI | NULL    |                |
+| original_title   | varchar(1000) | NO   |     | NULL    |                |
+| title            | varchar(1000) | NO   |     | NULL    |                |
+| rating           | longtext      | NO   |     | NULL    |                |
+| ratings_count    | int           | NO   |     | NULL    |                |
+| pubdate          | varchar(1000) | NO   |     | NULL    |                |
+| pubdates         | varchar(1000) | NO   |     | NULL    |                |
+| year             | int           | NO   | MUL | NULL    |                |
+| countries        | varchar(1000) | NO   |     | NULL    |                |
+| mainland_pubdate | varchar(1000) | NO   |     | NULL    |                |
+| aka              | varchar(1000) | NO   |     | NULL    |                |
+| tags             | varchar(1000) | NO   |     | NULL    |                |
+| durations        | longtext      | NO   |     | NULL    |                |
+| genres           | varchar(1000) | NO   |     | NULL    |                |
+| videos           | longtext      | NO   |     | NULL    |                |
+| wish_count       | int           | NO   |     | NULL    |                |
+| reviews_count    | int           | NO   |     | NULL    |                |
+| comments_count   | int           | NO   |     | NULL    |                |
+| collect_count    | int           | NO   |     | NULL    |                |
+| images           | longtext      | NO   |     | NULL    |                |
+
+movie_collectmovietypedb结构：
+mysql: [Warning] Using a password on the command line interface can be insecure.
++------------+--------------+------+-----+---------+----------------+
+| Field      | Type         | Null | Key | Default | Extra          |
++------------+--------------+------+-----+---------+----------------+
+| id         | int          | NO   | PRI | NULL    | auto_increment |
+| movie_type | varchar(100) | NO   | UNI | NULL    |                |
++------------+--------------+------+-----+---------+----------------+
+-- Adminer 4.6.3 MySQL dump
+
+SET NAMES utf8;
+SET time_zone = '+00:00';
+SET foreign_key_checks = 0;
+SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
+
+数据库表中的字段存储的内容和类型参考：
+DROP TABLE IF EXISTS `movie_collectmoviedb`;
+CREATE TABLE `movie_collectmoviedb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `movie_id` int(11) NOT NULL COMMENT '电影唯一标识',
+  `original_title` varchar(1000) NOT NULL COMMENT '原始名称',
+  `title` varchar(1000) NOT NULL COMMENT '电影名称',
+  `rating` longtext NOT NULL COMMENT '评分数据',
+  `ratings_count` int(11) NOT NULL COMMENT '评分人数',
+  `pubdate` varchar(1000) NOT NULL COMMENT '上映日期',
+  `pubdates` varchar(1000) NOT NULL COMMENT '上映日期数据',
+  `year` int(11) NOT NULL COMMENT '上映年份',
+  `countries` varchar(1000) NOT NULL COMMENT '出版国家',
+  `mainland_pubdate` varchar(1000) NOT NULL COMMENT '主要上映日期',
+  `aka` varchar(1000) NOT NULL COMMENT '又名',
+  `tags` varchar(1000) NOT NULL COMMENT '标签',
+  `durations` longtext NOT NULL COMMENT '时长',
+  `genres` varchar(1000) NOT NULL COMMENT '类型',
+  `videos` longtext NOT NULL COMMENT '视频数据',
+  `wish_count` int(11) NOT NULL COMMENT '想看人数',
+  `reviews_count` int(11) NOT NULL COMMENT '长评人数',
+  `comments_count` int(11) NOT NULL COMMENT '短评人数',
+  `collect_count` int(11) NOT NULL COMMENT '收藏人数',
+  `images` longtext NOT NULL COMMENT '海报数据',
+  `photos` longtext NOT NULL COMMENT '图像数据',
+  `languages` varchar(1000) NOT NULL COMMENT '语言',
+  `writers` longtext NOT NULL COMMENT '作者',
+  `actor` longtext NOT NULL COMMENT '演员',
+  `summary` longtext NOT NULL COMMENT '简介',
+  `directors` longtext NOT NULL COMMENT '导演',
+  `record_time` datetime NOT NULL COMMENT '记录时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `movie_id` (`movie_id`),
+  KEY `movie_collectmoviedb_year_index` (`year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+DROP TABLE IF EXISTS `movie_collectmovietypedb`;
+CREATE TABLE `movie_collectmovietypedb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `movie_type` varchar(100) NOT NULL COMMENT '电影类型',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `movie_type` (`movie_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `movie_collecttop250moviedb`;
+CREATE TABLE `movie_collecttop250moviedb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `movie_id` int(11) NOT NULL COMMENT '电影ID',
+  `movie_title` longtext NOT NULL COMMENT '中文标题',
+  `movie_original_title` longtext NOT NULL COMMENT '原始标题',
+  `movie_rating` longtext NOT NULL COMMENT '评分',
+  `movie_year` int(11) NOT NULL COMMENT '年份',
+  `movie_pubdates` longtext NOT NULL COMMENT '上映日期',
+  `movie_directors` longtext NOT NULL COMMENT '导演',
+  `movie_genres` longtext NOT NULL COMMENT '类型',
+  `movie_actor` longtext NOT NULL COMMENT '演员',
+  `movie_durations` longtext NOT NULL COMMENT '时长',
+  `movie_collect_count` int(11) NOT NULL COMMENT '收藏数',
+  `movie_mainland_pubdate` longtext NOT NULL COMMENT '主要上映日期',
+  `movie_images` longtext NOT NULL COMMENT '封面图片',
+  `record_time` datetime NOT NULL COMMENT '录入时间',
+  PRIMARY KEY (`id`,`movie_id`) USING BTREE,
+  UNIQUE KEY `movie_id` (`movie_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `movie_moviepubdatedb`;
+CREATE TABLE `movie_moviepubdatedb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `pubdate` date DEFAULT NULL COMMENT '上映日期',
+  `movie_id_id` int(11) NOT NULL COMMENT '电影',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `movie_id_id` (`movie_id_id`),
+  CONSTRAINT `movie_moviepubdatedb_movie_id_id_bc56d562_fk_movie_col` FOREIGN KEY (`movie_id_id`) REFERENCES `movie_collectmoviedb` (`movie_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `movie_movieratingdb`;
+CREATE TABLE `movie_movieratingdb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rating` decimal(4,2) NOT NULL COMMENT '评分分数',
+  `movie_id_id` int(11) NOT NULL COMMENT '电影',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `movie_movieratingdb_movie_id_id_9ccbeec7_uniq` (`movie_id_id`),
+  CONSTRAINT `movie_movieratingdb_movie_id_id_9ccbeec7_fk_movie_col` FOREIGN KEY (`movie_id_id`) REFERENCES `movie_collectmoviedb` (`movie_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `movie_movietagdb`;
+CREATE TABLE `movie_movietagdb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tag_type` varchar(100) NOT NULL COMMENT '标签类型',
+  `tag_name` varchar(100) NOT NULL COMMENT '标签名',
+  `movie_id_id` int(11) NOT NULL COMMENT '电影',
+  PRIMARY KEY (`id`),
+  KEY `movie_movietagdb_movie_id_id_1b892164_fk_movie_col` (`movie_id_id`),
+  KEY `movie_movietagdb_tag_name_0c47a751` (`tag_name`),
+  KEY `movie_movietagdb_tag_type_dc2aa4c2` (`tag_type`),
+  CONSTRAINT `movie_movietagdb_movie_id_id_1b892164_fk_movie_col` FOREIGN KEY (`movie_id_id`) REFERENCES `movie_collectmoviedb` (`movie_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+movie_collectmoviedb中一条具体的数据示例：
+| id    | movie_id | original_title          | title                   | rating                                                                                                  | ratings_count | pubdate | pubdates               | year | countries            | mainland_pubdate | aka                           | tags | durations      | genres               | videos | wish_count | reviews_count | comments_count | collect_count | images                                                                                                                                                                                                                                                                 | photos                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | languages  | writers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | actor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | summary | directors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | record_time         |
++-------+----------+-------------------------+-------------------------+---------------------------------------------------------------------------------------------------------+---------------+---------+------------------------+------+----------------------+------------------+-------------------------------+------+----------------+----------------------+--------+------------+---------------+----------------+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------+
+| 66729 |  5054361 | Les noces de porcelaine | Les noces de porcelaine | {'max': 10, 'average': 0, 'details': {'1': 0, '3': 0, '2': 0, '5': 0, '4': 0}, 'stars': '00', 'min': 0} |             0 |         | ['1975-05-21(法国)']   | 1975 | ['法国', '西德']     |                  | ['The Porcelain Anniversary'] | []   | ['100 分钟']   | ['喜剧', '剧情']     | []     |          0 |             0 |              0 |             0 | {'small': 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2556466061.jpg', 'large': 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2556466061.jpg', 'medium': 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2556466061.jpg'} | [{'thumb': 'https://img1.doubanio.com/view/photo/m/public/p2556466061.jpg', 'image': 'https://img1.doubanio.com/view/photo/l/public/p2556466061.jpg', 'cover': 'https://img1.doubanio.com/view/photo/sqs/public/p2556466061.jpg', 'alt': 'https://movie.douban.com/photos/photo/2556466061/', 'id': '2556466061', 'icon': 'https://img1.doubanio.com/view/photo/s/public/p2556466061.jpg'}, {'thumb': 'https://img9.doubanio.com/view/photo/m/public/p2510566245.jpg', 'image': 'https://img9.doubanio.com/view/photo/l/public/p2510566245.jpg', 'cover': 'https://img9.doubanio.com/view/photo/sqs/public/p2510566245.jpg', 'alt': 'https://movie.douban.com/photos/photo/2510566245/', 'id': '2510566245', 'icon': 'https://img9.doubanio.com/view/photo/s/public/p2510566245.jpg'}] | ['法语']   | [{'avatars': {'small': 'https://img1.doubanio.com/f/movie/ca527386eb8c4e325611e22dfcb04cc116d6b423/pics/movie/celebrity-default-small.png', 'large': 'https://img1.doubanio.com/f/movie/63acc16ca6309ef191f0378faf793d1096a3e606/pics/movie/celebrity-default-large.png', 'medium': 'https://img1.doubanio.com/f/movie/8dd0c794499fe925ae2ae89ee30cd225750457b4/pics/movie/celebrity-default-medium.png'}, 'name_en': 'Roger Coggio', 'name': '罗热·科焦', 'alt': 'https://movie.douban.com/celebrity/1033787/', 'id': '1033787'}, {'avatars': None, 'name_en': '', 'name': 'Bernard G. Landry', 'alt': None, 'id': None}, {'avatars': None, 'name_en': '', 'name': 'Pierre Philippe', 'alt': None, 'id': None}]      | [{'avatars': None, 'name_en': '', 'name': 'Colette Teissèdre', 'alt': None, 'id': None}, {'avatars': None, 'name_en': '', 'name': 'Jean-François Rémi', 'alt': None, 'id': None}, {'avatars': {'small': 'https://img1.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1408753176.2.jpg', 'large': 'https://img1.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1408753176.2.jpg', 'medium': 'https://img1.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1408753176.2.jpg'}, 'name_en': 'Mylène Demongeot', 'name': '米琳娜·德蒙若', 'alt': 'https://movie.douban.com/celebrity/1028012/', 'id': '1028012'}, {'avatars': {'small': 'https://img9.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1352113168.45.jpg', 'large': 'https://img9.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1352113168.45.jpg', 'medium': 'https://img9.doubanio.com/view/celebrity/s_ratio_celebrity/public/p1352113168.45.jpg'}, 'name_en': 'Françoise Giret', 'name': '弗朗索瓦丝·吉雷', 'alt': 'https://movie.douban.com/celebrity/1092829/', 'id': '1092829'}] |         | [{'avatars': {'small': 'https://img1.doubanio.com/f/movie/ca527386eb8c4e325611e22dfcb04cc116d6b423/pics/movie/celebrity-default-small.png', 'large': 'https://img1.doubanio.com/f/movie/63acc16ca6309ef191f0378faf793d1096a3e606/pics/movie/celebrity-default-large.png', 'medium': 'https://img1.doubanio.com/f/movie/8dd0c794499fe925ae2ae89ee30cd225750457b4/pics/movie/celebrity-default-medium.png'}, 'name_en': 'Roger Coggio', 'name': '罗热·科焦', 'alt': 'https://movie.douban.com/celebrity/1033787/', 'id': '1033787'}]      | 2021-04-11 12:13:50 
+这条数据来自一个电影数据库表，包含了电影的详细信息。以下是对这条数据的解析：
+id: 66729 - 数据库中的主键ID。
+movie_id: 5054361 - 电影的唯一标识符。
+original_title: Les noces de porcelaine - 电影的原始标题。
+title: Les noces de porcelaine - 电影的标题。
+rating: {'max': 10, 'average': 0, 'details': {'1': 0, '3': 0, '2': 0, '5': 0, '4': 0}, 'stars': '00', 'min': 0} - 电影的评分信息，包含最大值、平均值、详细评分分布等。
+ratings_count: 0 - 评分人数。
+pubdate: 空 - 电影的上映日期。
+pubdates: ['1975-05-21(法国)'] - 电影的上映日期列表。
+year: 1975 - 电影的上映年份。
+countries: ['法国', '西德'] - 电影的制作国家。
+mainland_pubdate: 空 - 电影在大陆的上映日期。
+aka: ['The Porcelain Anniversary'] - 电影的别名。
+tags: [] - 电影的标签。
+durations: ['100 分钟'] - 电影的时长。
+genres: ['喜剧', '剧情'] - 电影的类型。
+videos: [] - 电影的视频信息。
+wish_count: 0 - 想看人数。
+reviews_count: 0 - 长评人数。
+comments_count: 0 - 短评人数。
+collect_count: 0 - 收藏人数。
+images: 包含电影海报的URL，分别为小、中、大尺寸。
+photos: 包含电影相关的照片信息，包括缩略图、图片、封面等。
+languages: ['法语'] - 电影的语言。
+writers: 包含编剧的信息，包括名字、头像、链接等。
+languages: ['法语'] - 电影的语言。
+writers: 包含编剧的信息，包括名字、头像、链接等。
+actor: 包含演员的信息，包括名字、头像、链接等。
+summary: 空 - 电影的简介。
+directors: 包含导演的信息，包括名字、头像、链接等。
+record_time: 2021-04-11 12:13:50 - 记录时间。

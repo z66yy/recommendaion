@@ -1,0 +1,212 @@
+{% extends 'base/base.html' %}
+
+{% block title %}为您推荐 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<v-container>
+    <h1 class="text-h4 mb-6">为您推荐</h1>
+    
+    {% if user.is_staff %}
+    <!-- 系统状态卡片 - 仅管理员可见 -->
+    <v-card class="mb-6" outlined>
+        <v-card-title class="headline">
+            推荐系统状态
+            <v-spacer></v-spacer>
+            <v-chip 
+                color="{% if system_status.recommendation_ready %}success{% else %}error{% endif %}" 
+                text-color="white"
+            >
+                {% if system_status.recommendation_ready %}就绪{% else %}未就绪{% endif %}
+            </v-chip>
+        </v-card-title>
+        <v-card-text>
+            <v-row>
+                <v-col cols="12" md="6">
+                    <h3 class="subtitle-1 font-weight-bold mb-2">基本统计</h3>
+                    <v-simple-table dense>
+                        <template v-slot:default>
+                            <tbody>
+                                <tr>
+                                    <td>电影总数</td>
+                                    <td>{{ system_status.total_movies }}</td>
+                                </tr>
+                                <tr>
+                                    <td>用户总数</td>
+                                    <td>{{ system_status.total_users }}</td>
+                                </tr>
+                                <tr>
+                                    <td>评分总数</td>
+                                    <td>{{ system_status.total_ratings }}</td>
+                                </tr>
+                                <tr>
+                                    <td>收藏总数</td>
+                                    <td>{{ system_status.total_favorites }}</td>
+                                </tr>
+                                <tr>
+                                    <td>历史记录</td>
+                                    <td>{{ system_status.total_history }}</td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </v-simple-table>
+                </v-col>
+                <v-col cols="12" md="6">
+                    <h3 class="subtitle-1 font-weight-bold mb-2">推荐系统指标</h3>
+                    <v-simple-table dense>
+                        <template v-slot:default>
+                            <tbody>
+                                <tr>
+                                    <td>相似度记录</td>
+                                    <td>{{ system_status.total_similarities }}</td>
+                                </tr>
+                                <tr>
+                                    <td>相似度覆盖率</td>
+                                    <td>
+                                        {{ system_status.similarity_coverage }}%
+                                        ({{ system_status.movies_with_similarities }}/{{ system_status.total_movies }})
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>用户评分覆盖率</td>
+                                    <td>
+                                        {{ system_status.user_rating_coverage }}%
+                                        ({{ system_status.users_with_ratings }}/{{ system_status.total_users }})
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>相似度数据</td>
+                                    <td>
+                                        <v-chip 
+                                            color="{% if system_status.has_similarity_data %}success{% else %}error{% endif %}" 
+                                            x-small
+                                        >
+                                            {% if system_status.has_similarity_data %}有{% else %}无{% endif %}
+                                        </v-chip>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>评分数据</td>
+                                    <td>
+                                        <v-chip 
+                                            color="{% if system_status.has_rating_data %}success{% else %}error{% endif %}" 
+                                            x-small
+                                        >
+                                            {% if system_status.has_rating_data %}有{% else %}无{% endif %}
+                                        </v-chip>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </v-simple-table>
+                </v-col>
+            </v-row>
+        </v-card-text>
+    </v-card>
+    {% endif %}
+    
+    {% if recommended_movies %}
+    <v-row>
+        {% for movie in recommended_movies %}
+        <v-col cols="12" sm="6" md="4" lg="3">
+            <v-card
+                :elevation="hover ? 8 : 2"
+                class="mx-auto"
+                max-width="344"
+                v-hover="{ hover: false }"
+            >
+                <v-img
+                    :src="{{ movie.poster.url }}"
+                    height="400"
+                    cover
+                ></v-img>
+                
+                <v-card-title class="text-truncate">
+                    {{ movie.title }}
+                </v-card-title>
+                
+                <v-card-subtitle>
+                    {% if movie.original_title %}
+                    {{ movie.original_title }}
+                    {% endif %}
+                </v-card-subtitle>
+                
+                <v-card-text>
+                    <div class="mb-2">
+                        <v-rating
+                            v-model="ratings[{{ movie.id }}]"
+                            color="yellow darken-3"
+                            background-color="grey darken-1"
+                            empty-icon="$ratingFull"
+                            half-increments
+                            readonly
+                            dense
+                            size="14"
+                        ></v-rating>
+                        <span class="ml-2">({{ movie.rating_count }}人评分)</span>
+                    </div>
+                    
+                    <div class="mb-1">导演：{{ movie.director }}</div>
+                    <div class="mb-2">类型：
+                        {% for genre in movie.genres.all %}
+                        <v-chip
+                            x-small
+                            class="mr-1"
+                            color="primary"
+                            text-color="white"
+                            href="{% url 'movies:movie_list_by_genre' genre.id %}"
+                        >
+                            {{ genre.name }}
+                        </v-chip>
+                        {% endfor %}
+                    </div>
+                </v-card-text>
+                
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn
+                        text
+                        color="primary"
+                        href="{% url 'movies:movie_detail' movie.id %}"
+                    >
+                        查看详情
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-col>
+        {% endfor %}
+    </v-row>
+    {% else %}
+    <v-row justify="center" align="center" style="height: 400px;">
+        <v-col cols="12" class="text-center">
+            <v-icon size="64" color="grey">mdi-movie-outline</v-icon>
+            <div class="text-h5 grey--text mt-4">暂无推荐电影</div>
+            <div class="grey--text text--darken-1 mt-2">
+                观看更多电影并进行评分，我们将为您推荐更多好电影
+            </div>
+            <v-btn
+                color="primary"
+                href="{% url 'movies:movie_list' %}"
+                class="mt-4"
+            >
+                去看电影
+            </v-btn>
+        </v-col>
+    </v-row>
+    {% endif %}
+</v-container>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+new Vue({
+    el: '#content',
+    data: {
+        ratings: {
+            {% for movie in recommended_movies %}
+            {{ movie.id }}: {{ movie.rating }},
+            {% endfor %}
+        }
+    }
+})
+</script>
+{% endblock %} 

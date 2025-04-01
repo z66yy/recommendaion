@@ -1,0 +1,1149 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ movie.title }} - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.default-poster {
+    background: linear-gradient(45deg, #2196F3, #3F51B5);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+    padding: 1rem;
+}
+.default-poster .movie-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+.default-poster .movie-year {
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+.star-rating {
+    display: inline-block;
+}
+
+/* 主要海报样式 */
+.poster-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.poster-container:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+.card-img-top {
+    transition: transform 0.5s ease;
+}
+.poster-container:hover .card-img-top {
+    transform: scale(1.05);
+}
+
+/* 占位符样式 */
+.poster-placeholder {
+    background-color: #e0e0e0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+.poster-placeholder::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    animation: placeholder-shimmer 1.5s infinite;
+}
+@keyframes placeholder-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* 完全重写星星评分CSS */
+.rating-stars {
+    display: inline-flex;
+    flex-direction: row-reverse; /* 关键：反转方向，使悬停效果正确 */
+    justify-content: flex-end;
+}
+
+.star {
+    color: #ccc;
+    cursor: pointer;
+    font-size: 24px;
+    margin: 0 2px;
+    transition: color 0.2s;
+}
+
+.star.active {
+    color: #ffc107;
+}
+
+/* 悬停效果：当悬停在一个星星上，它和它右边的所有星星都会变色 */
+.rating-stars .star:hover,
+.rating-stars .star:hover ~ .star {
+    color: #ffc107;
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+.btn-favorite {
+    transition: all 0.3s;
+}
+.btn-favorite.active {
+    color: white;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+/* 修复图片和容器样式 */
+.card-img-top {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 相似电影卡片样式修复 */
+.similar-movie-card {
+    transition: all 0.3s ease;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.similar-movie-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+}
+
+.movie-card {
+    transition: transform 0.3s ease;
+}
+
+.movie-card:hover {
+    transform: translateY(-5px);
+}
+
+.poster-container {
+    position: relative;
+    padding-top: 150%;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.movie-poster {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.movie-info {
+    padding: 8px;
+}
+
+.movie-title {
+    font-size: 14px;
+    margin-bottom: 4px;
+    color: #333;
+}
+
+.rating {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.rating-score {
+    font-size: 12px;
+    color: #666;
+}
+
+.rating-stars {
+    font-size: 12px;
+}
+
+.fa-star {
+    font-size: 10px;
+}
+
+/* 视频播放器样式 */
+#player-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.ratio-16x9 {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+#player-iframe {
+    border: none;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+}
+
+.playing-title {
+    color: #333;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 70%;
+}
+
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #2196F3, #1565C0) !important;
+}
+
+#video-parser-form .input-group {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#video-url:focus {
+    box-shadow: none;
+    border-color: #2196F3;
+}
+
+#close-player:hover {
+    background-color: #f44336;
+    color: white;
+    border-color: #f44336;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 通知提示容器 -->
+<div class="toast-container"></div>
+
+<div class="container">
+    <div class="row mt-4">
+        <!-- 电影封面区域 -->
+        <div class="col-md-4 mb-4">
+            <div class="poster-container" style="height: 500px; position: relative; overflow: hidden; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <div class="poster-placeholder" style="position: absolute; top: 0; left: 0; height: 100%; width: 100%; border-radius: 0.25rem;"></div>
+                <img 
+                    class="card-img-top" 
+                    src="{% url 'movies:image_proxy' movie.cover_image|urlencode %}?local=true&title={{ movie.title|urlencode }}&movie_id={{ movie.movie_id }}" 
+                    alt="{{ movie.title }}" 
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"
+                    data-default="{% url 'movies:image_proxy' 'default'|urlencode %}?title={{ movie.title|urlencode }}"
+                    onload="this.classList.add('loaded')"
+                    onerror="this.onerror=null; this.src=this.getAttribute('data-default')">
+            </div>
+        </div>
+        
+        <!-- 电影详情区域 -->
+        <div class="col-md-8">
+            <h1 class="mb-2">{{ movie.title }}</h1>
+            <div class="text-muted mb-4">{{ movie.original_title }}</div>
+            
+            <div class="d-flex align-items-center mb-4">
+                <div class="text-warning me-2">
+                    {% with rating=movie.rating|floatformat:1|default:"0.0" %}
+                    {% for i in "12345" %}
+                        {% if forloop.counter <= rating|floatformat:0|add:"0" %}
+                        <i class="mdi mdi-star"></i>
+                        {% elif forloop.counter <= rating|add:"0.5"|floatformat:0|add:"0" %}
+                        <i class="mdi mdi-star-half-full"></i>
+                        {% else %}
+                        <i class="mdi mdi-star-outline"></i>
+                        {% endif %}
+                    {% endfor %}
+                    {% endwith %}
+                </div>
+                <span class="ms-2">{{ movie.rating|floatformat:1 }}</span>
+                <span class="ms-2 text-muted">({{ movie.ratings_count|default:0 }} 人评分)</span>
+            </div>
+
+            <div class="mb-4">
+                {% for genre in movie.genres %}
+                <span class="badge bg-primary me-2">{{ genre }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="mb-4">
+                <h6 class="fw-bold">上映日期</h6>
+                <div>{{ movie.pubdate }}</div>
+            </div>
+
+            <div class="mb-4">
+                <h6 class="fw-bold">简介</h6>
+                <div>{{ movie.summary }}</div>
+            </div>
+
+            {% if user.is_authenticated %}
+            <div id="movie-interactions" class="mt-5">
+                <div class="d-flex mb-4">
+                    <button id="favorite-btn" class="btn btn-outline-danger btn-favorite me-3" onclick="toggleFavorite('{{ movie.movie_id }}')">
+                        <i class="mdi mdi-heart"></i> 收藏电影
+                    </button>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">我的评分</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="rating-container text-center">
+                            <div id="user-rating" class="rating-stars mb-2" data-has-rated="{{ user_rating|yesno:'true,false' }}">
+                                <span class="star {% if user_rating and user_rating >= 10 %}active{% endif %}" data-rating="10">★</span>
+                                <span class="star {% if user_rating and user_rating >= 9 %}active{% endif %}" data-rating="9">★</span>
+                                <span class="star {% if user_rating and user_rating >= 8 %}active{% endif %}" data-rating="8">★</span>
+                                <span class="star {% if user_rating and user_rating >= 7 %}active{% endif %}" data-rating="7">★</span>
+                                <span class="star {% if user_rating and user_rating >= 6 %}active{% endif %}" data-rating="6">★</span>
+                                <span class="star {% if user_rating and user_rating >= 5 %}active{% endif %}" data-rating="5">★</span>
+                                <span class="star {% if user_rating and user_rating >= 4 %}active{% endif %}" data-rating="4">★</span>
+                                <span class="star {% if user_rating and user_rating >= 3 %}active{% endif %}" data-rating="3">★</span>
+                                <span class="star {% if user_rating and user_rating >= 2 %}active{% endif %}" data-rating="2">★</span>
+                                <span class="star {% if user_rating and user_rating >= 1 %}active{% endif %}" data-rating="1">★</span>
+                            </div>
+                            <div class="rating-value">
+                                <span id="rating-display">{% if user_rating %}{{ user_rating|floatformat:1 }}{% else %}未评分{% endif %}</span> / 10
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 新增: 视频播放功能 -->
+    <div class="row mt-5 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="mdi mdi-play-circle-outline me-2"></i>在线观看 - {{ movie.title }}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <form id="video-parser-form" class="mb-3">
+                            <div class="input-group">
+                                <span class="input-group-text">视频链接</span>
+                                <input type="url" id="video-url" class="form-control" placeholder="请输入视频链接，如爱奇艺、腾讯视频等..." required>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="mdi mdi-play me-1"></i>播放
+                                </button>
+                            </div>
+                            <div class="form-text mt-2">
+                                支持爱奇艺、优酷、腾讯视频、芒果TV等各大视频网站，只需复制视频页面链接即可。
+                            </div>
+                        </form>
+
+                        <!-- 快捷搜索按钮 -->
+                        <div class="quick-search mt-3 mb-3">
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="text-muted me-2">快捷搜索:</span>
+                                <button class="btn btn-sm btn-outline-info quick-search-btn" data-site="iqiyi">
+                                    <i class="mdi mdi-magnify me-1"></i>爱奇艺
+                                </button>
+                                <button class="btn btn-sm btn-outline-info quick-search-btn" data-site="qq">
+                                    <i class="mdi mdi-magnify me-1"></i>腾讯视频
+                                </button>
+                                <button class="btn btn-sm btn-outline-info quick-search-btn" data-site="youku">
+                                    <i class="mdi mdi-magnify me-1"></i>优酷
+                                </button>
+                                <button class="btn btn-sm btn-outline-info quick-search-btn" data-site="mgtv">
+                                    <i class="mdi mdi-magnify me-1"></i>芒果TV
+                                </button>
+                                <button class="btn btn-sm btn-outline-info quick-search-btn" data-site="1905">
+                                    <i class="mdi mdi-magnify me-1"></i>1905电影网
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 直接解析区域 -->
+                        <div class="direct-parse mt-4">
+                            <div class="alert alert-light border">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <h5 class="mb-0"><i class="mdi mdi-lightning-bolt-outline text-warning me-2"></i>一键播放</h5>
+                                    <span class="badge bg-primary">推荐</span>
+                                </div>
+                                <p class="text-muted small mb-3">
+                                    尝试自动搜索并播放《{{ movie.title }}》，无需手动搜索和复制链接。
+                                </p>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button id="auto-play-iqiyi" class="btn btn-sm btn-primary auto-play-btn" data-site="iqiyi">
+                                        爱奇艺一键播放
+                                    </button>
+                                    <button id="auto-play-qq" class="btn btn-sm btn-primary auto-play-btn" data-site="qq">
+                                        腾讯视频一键播放
+                                    </button>
+                                    <button id="auto-play-youku" class="btn btn-sm btn-primary auto-play-btn" data-site="youku">
+                                        优酷一键播放
+                                    </button>
+                                </div>
+                                <div class="mt-2 small text-danger">
+                                    <i class="mdi mdi-information-outline me-1"></i>
+                                    注意：一键播放功能可能不适用于所有影片，如遇问题请使用上方的搜索功能。
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="player-container" style="display: none;">
+                        <div class="ratio ratio-16x9 mb-3">
+                            <iframe id="player-iframe" allowfullscreen></iframe>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="playing-title h5 mb-0"></div>
+                            <button id="close-player" class="btn btn-sm btn-outline-secondary">
+                                <i class="mdi mdi-close me-1"></i>关闭播放器
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 相似电影推荐 -->
+    <div class="similar-movies mt-5">
+        <h3 class="mb-4">相似电影推荐</h3>
+        <div class="row">
+            {% for similar_movie in similar_movies %}
+            <div class="col-md-2 col-sm-4 col-6 mb-4">
+                <div class="movie-card">
+                    <a href="{% url 'movies:movie_detail' similar_movie.movie_id %}" class="text-decoration-none">
+                        <div class="poster-container">
+                            <img src="{% url 'movies:image_proxy' similar_movie.images|urlencode %}?local=true&title={{ similar_movie.title|urlencode }}&movie_id={{ similar_movie.movie_id }}"
+                                 alt="{{ similar_movie.title }}"
+                                 class="img-fluid rounded movie-poster"
+                                 data-default="{% url 'movies:image_proxy' 'default'|urlencode %}?title={{ similar_movie.title|urlencode }}"
+                                 onload="this.classList.add('loaded')"
+                                 onerror="this.onerror=null; this.src=this.getAttribute('data-default')">
+                        </div>
+                        <div class="movie-info mt-2">
+                            <h6 class="movie-title text-truncate">{{ similar_movie.title }}</h6>
+                            <div class="rating">
+                                <span class="rating-score">{{ similar_movie.rating }}</span>
+                                <div class="rating-stars">
+                                    {% with ''|center:similar_movie.rating|make_list as stars %}
+                                    {% for _ in stars %}
+                                    <i class="fas fa-star text-warning"></i>
+                                    {% endfor %}
+                                    {% endwith %}
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 确保DOM加载完成后执行
+document.addEventListener('DOMContentLoaded', function() {
+    // 图片懒加载
+    const loadImages = () => {
+        if ('IntersectionObserver' in window) {
+            const loadImage = (imageElement) => {
+                const src = imageElement.getAttribute('data-src');
+                if (!src) return;
+                
+                imageElement.src = src;
+                imageElement.style.display = 'block';
+                
+                imageElement.onload = function() {
+                    // 图片加载完成后，移除占位符并添加loaded类
+                    imageElement.classList.add('loaded');
+                    const placeholderElement = imageElement.parentNode.querySelector('.poster-placeholder');
+                    if (placeholderElement) {
+                        placeholderElement.style.display = 'none';
+                    }
+                };
+            };
+            
+            const imgObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        loadImage(img);
+                        observer.unobserve(img);
+                    }
+                });
+            }, {
+                rootMargin: '50px 0px',
+                threshold: 0.1
+            });
+            
+            // 获取所有需要懒加载的图片
+            const lazyImages = document.querySelectorAll('.fade-in-image');
+            lazyImages.forEach(img => imgObserver.observe(img));
+        } else {
+            // 如果浏览器不支持IntersectionObserver，退回到传统方法
+            const lazyImages = document.querySelectorAll('.fade-in-image');
+            lazyImages.forEach(img => {
+                img.src = img.getAttribute('data-src');
+                img.style.display = 'block';
+                img.onload = function() {
+                    img.classList.add('loaded');
+                    const placeholder = img.parentNode.querySelector('.poster-placeholder');
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
+                    }
+                };
+            });
+        }
+    };
+    
+    // 加载图片
+    loadImages();
+    
+    // 定义变量
+    const stars = document.querySelectorAll('.rating-stars .star');
+    const ratingDisplay = document.getElementById('rating-display');
+    const ratingContainer = document.getElementById('user-rating');
+    const movieId = '{{ movie.movie_id }}';
+    
+    // 为每个星星添加点击事件
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            // 获取评分值（1-10）
+            const ratingValue = parseInt(this.getAttribute('data-rating'), 10);
+            console.log('点击了星星，评分值:', ratingValue);
+            
+            if (isNaN(ratingValue)) {
+                console.error('无效的评分值:', this.getAttribute('data-rating'));
+                return;
+            }
+            
+            // 设置评分
+            setRating(ratingValue);
+        });
+    });
+    
+    // 检查电影是否被收藏
+    checkFavoriteStatus(movieId);
+    
+    // 设置评分的函数 - 仅处理UI更新
+    function setRating(rating) {
+        // 更新星星显示
+        stars.forEach(star => {
+            const starValue = parseInt(star.getAttribute('data-rating'), 10);
+            if (starValue <= rating) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
+        });
+        
+        // 更新评分显示
+        if (ratingDisplay) {
+            ratingDisplay.textContent = rating;
+        }
+        
+        // 发送评分请求
+        rateMovie(rating);
+    }
+    
+    // 视频播放功能
+    const videoForm = document.getElementById('video-parser-form');
+    const videoUrlInput = document.getElementById('video-url');
+    const playerContainer = document.getElementById('player-container');
+    const playerIframe = document.getElementById('player-iframe');
+    const playingTitle = document.querySelector('.playing-title');
+    const closePlayerBtn = document.getElementById('close-player');
+    
+    // 视频解析API地址 - 更新为更稳定的解析接口
+    const videoParserUrl = 'https://jx.playerjy.com/?url=';
+    // 备用解析接口
+    const backupParserUrls = [
+        'https://jx.973973.xyz/?url=',
+        'https://jx.bozrc.com:4433/player/?url=',
+        'https://jx.parwix.com:4433/player/?url='
+    ];
+    
+    // 当前使用的解析接口索引
+    let currentParserIndex = 0;
+    
+    // 获取下一个解析URL
+    function getNextParserUrl() {
+        currentParserIndex = (currentParserIndex + 1) % backupParserUrls.length;
+        return backupParserUrls[currentParserIndex];
+    }
+    
+    // URL模板定义
+    const searchUrlTemplates = {
+        'iqiyi': 'https://so.iqiyi.com/so/q_{title}_{year}',
+        'qq': 'https://v.qq.com/x/search/?q={title}+{year}',
+        'youku': 'https://so.youku.com/search_video/q_{title}_{year}',
+        'mgtv': 'https://so.mgtv.com/so/k-{title}',
+        '1905': 'https://www.1905.com/search/?q={title}'
+    };
+    
+    // 直接播放页面的URL模板 (理想情况下)
+    const playUrlTemplates = {
+        'iqiyi': 'https://www.iqiyi.com/v_{id}.html',
+        'qq': 'https://v.qq.com/x/cover/{id}.html',
+        'youku': 'https://v.youku.com/v_show/id_{id}.html',
+        'other': '{url}'
+    };
+    
+    // 快捷搜索功能
+    const quickSearchButtons = document.querySelectorAll('.quick-search-btn');
+    const movieTitle = '{{ movie.title }}';
+    const movieYear = '{{ movie.year }}';
+    
+    // 一键播放按钮
+    const autoPlayButtons = document.querySelectorAll('.auto-play-btn');
+    
+    // 播放器加载状态变量
+    let playerLoadTimeout;
+    let isPlayerLoading = false;
+    
+    // 调试日志容器
+    const logContainer = document.createElement('div');
+    logContainer.className = 'log-container mt-3 p-3 border rounded bg-light';
+    logContainer.style.display = 'none';
+    logContainer.innerHTML = '<h6>调试日志:</h6><div id="debug-logs" class="small text-monospace" style="max-height: 200px; overflow-y: auto;"></div>';
+    
+    // 添加调试按钮
+    const debugButton = document.createElement('button');
+    debugButton.className = 'btn btn-sm btn-outline-secondary mt-2';
+    debugButton.innerHTML = '<i class="mdi mdi-bug"></i> 显示调试日志';
+    debugButton.onclick = function() {
+        if (logContainer.style.display === 'none') {
+            logContainer.style.display = 'block';
+            this.innerHTML = '<i class="mdi mdi-bug"></i> 隐藏调试日志';
+        } else {
+            logContainer.style.display = 'none';
+            this.innerHTML = '<i class="mdi mdi-bug"></i> 显示调试日志';
+        }
+    };
+    
+    // 将日志容器和按钮添加到DOM
+    document.querySelector('.direct-parse').appendChild(debugButton);
+    document.querySelector('.direct-parse').appendChild(logContainer);
+    
+    // 日志函数
+    function logDebug(message, type = 'info') {
+        const logElement = document.getElementById('debug-logs');
+        if (logElement) {
+            const logLine = document.createElement('div');
+            logLine.className = `mb-1 text-${type}`;
+            logLine.innerHTML = `<small>[${new Date().toLocaleTimeString()}] ${message}</small>`;
+            logElement.appendChild(logLine);
+            // 自动滚动到底部
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        // 同时输出到控制台
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    // 清除日志
+    function clearLogs() {
+        const logElement = document.getElementById('debug-logs');
+        if (logElement) {
+            logElement.innerHTML = '';
+        }
+    }
+    
+    // 处理一键播放按钮点击
+    autoPlayButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const site = this.getAttribute('data-site');
+            
+            // 清除旧日志
+            clearLogs();
+            logDebug(`点击了一键播放按钮: ${site}`, 'primary');
+            
+            // 显示加载中提示
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> 搜索中...';
+            
+            // 重置加载状态
+            clearTimeout(playerLoadTimeout);
+            isPlayerLoading = true;
+            
+            // 将平台名称显示为正在解析的平台
+            const platformNames = {
+                'iqiyi': '爱奇艺',
+                'qq': '腾讯视频',
+                'youku': '优酷'
+            };
+            
+            logDebug(`电影标题: "${movieTitle}", 年份: ${movieYear}`, 'info');
+            
+            // 构造一个可能的URL模板
+            const defaultUrlTemplate = playUrlTemplates[site];
+            logDebug(`使用模板: ${defaultUrlTemplate}`, 'info');
+            
+            if (defaultUrlTemplate) {
+                try {
+                    // 修复：更好地处理中文电影名称
+                    // 1. 对于中文电影名称，保留原始名称，只替换空格
+                    // 2. 对于英文电影名称，转为小写并替换特殊字符
+                    let formattedTitle;
+                    
+                    // 检查是否是中文电影名 (含有中文字符)
+                    if (/[\u4e00-\u9fa5]/.test(movieTitle)) {
+                        // 中文名称处理：只去除空格，保留原始中文字符
+                        formattedTitle = movieTitle.trim().replace(/\s+/g, '');
+                        logDebug(`检测到中文标题，处理后: "${formattedTitle}"`, 'info');
+                    } else {
+                        // 英文名称处理：转小写，替换空格为下划线，移除特殊字符
+                        formattedTitle = movieTitle
+                            .replace(/\s+/g, '_')
+                            .replace(/[^\w\s]/gi, '')
+                            .toLowerCase();
+                        logDebug(`检测到英文标题，处理后: "${formattedTitle}"`, 'info');
+                    }
+                    
+                    // 准备URL安全的格式化标题，用于构建URL时确保转义特殊字符
+                    const encodedTitle = encodeURIComponent(formattedTitle);
+                    logDebug(`URL编码后的标题: "${encodedTitle}"`, 'info');
+                    
+                    // 构造解析URL (调整URL构造规则以提高成功率)
+                    let videoUrl;
+                    if (site === 'iqiyi') {
+                        // 爱奇艺特殊处理 - 使用搜索URL
+                        videoUrl = `https://so.iqiyi.com/so/q_${encodedTitle}`;
+                        logDebug(`爱奇艺搜索URL: ${videoUrl}`, 'success');
+                    } else if (site === 'qq') {
+                        // 腾讯视频特殊处理 - 使用搜索URL
+                        videoUrl = `https://v.qq.com/x/search/?q=${encodedTitle}`;
+                        logDebug(`腾讯视频搜索URL: ${videoUrl}`, 'success');
+                    } else if (site === 'youku') {
+                        // 优酷特殊处理 - 使用搜索URL
+                        videoUrl = `https://so.youku.com/search_video/q_${encodedTitle}`;
+                        logDebug(`优酷搜索URL: ${videoUrl}`, 'success');
+                    } else {
+                        // 默认使用模板
+                        videoUrl = defaultUrlTemplate.replace('{title}', encodedTitle);
+                        logDebug(`默认URL: ${videoUrl}`, 'success');
+                    }
+                    
+                    // 构建最终解析URL，使用正确的方式传参给解析服务
+                    const parseUrl = `${videoParserUrl}${encodeURIComponent(videoUrl)}`;
+                    logDebug(`最终解析URL: ${parseUrl}`, 'warning');
+                    
+                    // 添加额外的调试信息以查看编码前后的差异
+                    logDebug(`解码后的URL: ${decodeURIComponent(parseUrl.replace(videoParserUrl, ''))}`, 'info');
+                    
+                    // 在新窗口中打开解析URL (用于调试)
+                    const debugLink = document.createElement('a');
+                    debugLink.href = 'javascript:void(0)';
+                    debugLink.className = 'text-info';
+                    debugLink.innerHTML = '在新窗口打开解析URL';
+                    debugLink.onclick = function() {
+                        window.open(parseUrl, '_blank');
+                    };
+                    document.getElementById('debug-logs').appendChild(debugLink);
+                    
+                    // 显示播放器
+                    playerContainer.style.display = 'block';
+                    
+                    // 设置播放状态提示
+                    playingTitle.innerHTML = `<span class="text-primary">正在加载:</span> ${movieTitle} (${platformNames[site]}) <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
+                    
+                    // 清除旧iframe内容
+                    playerIframe.src = 'about:blank';
+                    
+                    // 添加iframe加载事件
+                    playerIframe.onload = function() {
+                        logDebug('iframe已加载', 'success');
+                        clearTimeout(playerLoadTimeout);
+                        
+                        // 延迟两秒检查视频是否真正加载完成
+                        setTimeout(() => {
+                            if (isPlayerLoading) {
+                                isPlayerLoading = false;
+                                playingTitle.innerHTML = `<span class="text-success">正在播放:</span> ${movieTitle} (${platformNames[site]})`;
+                                logDebug('视频加载完成', 'success');
+                            }
+                        }, 2000);
+                    };
+                    
+                    // 设置加载超时处理
+                    playerLoadTimeout = setTimeout(() => {
+                        if (isPlayerLoading) {
+                            isPlayerLoading = false;
+                            playingTitle.innerHTML = `<span class="text-danger">加载失败:</span> ${movieTitle} (${platformNames[site]}) <button id="retry-loading" class="btn btn-sm btn-outline-primary ms-2">重试</button>`;
+                            
+                            logDebug('视频加载超时', 'danger');
+                            
+                            // 添加重试按钮事件
+                            document.getElementById('retry-loading')?.addEventListener('click', () => {
+                                // 重新加载iframe
+                                logDebug('点击重试按钮', 'info');
+                                playerIframe.src = parseUrl;
+                                isPlayerLoading = true;
+                                playingTitle.innerHTML = `<span class="text-primary">重新加载中:</span> ${movieTitle} (${platformNames[site]}) <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
+                                
+                                // 设置新的超时
+                                clearTimeout(playerLoadTimeout);
+                                playerLoadTimeout = setTimeout(() => {
+                                    if (isPlayerLoading) {
+                                        isPlayerLoading = false;
+                                        playingTitle.innerHTML = `<span class="text-danger">加载失败:</span> ${movieTitle} - 请尝试使用搜索功能`;
+                                        showToast('视频加载失败，请尝试使用搜索功能手动查找视频', 'warning');
+                                        logDebug('重试后仍然加载失败', 'danger');
+                                    }
+                                }, 15000);
+                            });
+                            
+                            showToast('视频解析超时，可能是资源不存在或解析服务器繁忙', 'warning');
+                        }
+                    }, 15000);
+                    
+                    // 滚动到播放器位置
+                    playerContainer.scrollIntoView({ behavior: 'smooth' });
+                    
+                    // 加载到iframe (延迟一点加载以确保DOM更新)
+                    setTimeout(() => {
+                        playerIframe.src = parseUrl;
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('解析视频时发生错误:', error);
+                    showToast('解析视频失败: ' + error.message, 'danger');
+                    
+                    // 记录错误到日志
+                    logDebug(`解析过程中发生错误: ${error.message}`, 'danger');
+                    logDebug(`错误堆栈: ${error.stack}`, 'danger');
+                    
+                    // 更新播放状态
+                    if (playerContainer.style.display === 'block') {
+                        playingTitle.innerHTML = `<span class="text-danger">错误:</span> 视频解析失败`;
+                    }
+                    
+                    clearTimeout(playerLoadTimeout);
+                    isPlayerLoading = false;
+                }
+                
+                // 恢复按钮状态
+                setTimeout(() => {
+                    this.disabled = false;
+                    this.innerHTML = platformNames[site] + '一键播放';
+                }, 1500);
+                
+            } else {
+                showToast('不支持该平台的一键播放', 'warning');
+                
+                // 恢复按钮状态
+                this.disabled = false;
+                this.innerHTML = platformNames[site] + '一键播放';
+            }
+        });
+    });
+    
+    // 处理快捷搜索按钮点击
+    quickSearchButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const site = this.getAttribute('data-site');
+            const searchUrlTemplate = searchUrlTemplates[site];
+            
+            if (searchUrlTemplate) {
+                // 替换搜索模板中的{title}和{year}
+                const searchUrl = searchUrlTemplate
+                    .replace('{title}', encodeURIComponent(movieTitle))
+                    .replace('{year}', movieYear);
+                
+                // 在新窗口中打开搜索结果
+                window.open(searchUrl, '_blank');
+            }
+        });
+    });
+    
+    // 处理表单提交
+    if (videoForm) {
+        videoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const videoUrl = videoUrlInput.value.trim();
+            if (!videoUrl) {
+                showToast('请输入视频链接', 'warning');
+                return;
+            }
+            
+            // 重置加载状态
+            clearTimeout(playerLoadTimeout);
+            isPlayerLoading = true;
+            
+            // 显示播放器
+            playerContainer.style.display = 'block';
+            
+            // 设置播放状态提示
+            playingTitle.innerHTML = `<span class="text-primary">正在加载视频...</span> <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
+            
+            // 清除旧iframe内容
+            playerIframe.src = 'about:blank';
+            
+            try {
+                // 生成解析URL并加载到iframe
+                const parseUrl = videoParserUrl + encodeURIComponent(videoUrl);
+                
+                // 添加iframe加载事件
+                playerIframe.onload = function() {
+                    clearTimeout(playerLoadTimeout);
+                    
+                    // 延迟两秒检查视频是否真正加载完成
+                    setTimeout(() => {
+                        if (isPlayerLoading) {
+                            isPlayerLoading = false;
+                            playingTitle.innerHTML = `<span class="text-success">正在播放:</span> ${movieTitle}`;
+                        }
+                    }, 2000);
+                };
+                
+                // 设置加载超时处理
+                playerLoadTimeout = setTimeout(() => {
+                    if (isPlayerLoading) {
+                        isPlayerLoading = false;
+                        
+                        // 尝试切换解析接口
+                        const nextParserUrl = getNextParserUrl();
+                        const newParseUrl = nextParserUrl + encodeURIComponent(videoUrl);
+                        
+                        playingTitle.innerHTML = `<span class="text-warning">尝试备用解析:</span> ${movieTitle} <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
+                        playerIframe.src = newParseUrl;
+                        
+                        showToast('正在尝试备用解析接口...', 'info');
+                        
+                        // 设置新的超时
+                        clearTimeout(playerLoadTimeout);
+                        playerLoadTimeout = setTimeout(() => {
+                            if (isPlayerLoading) {
+                                isPlayerLoading = false;
+                                playingTitle.innerHTML = `<span class="text-danger">解析失败:</span> 请尝试其他视频链接 <button id="retry-manual-loading" class="btn btn-sm btn-outline-primary ms-2">重试</button>`;
+                                
+                                // 添加重试按钮事件
+                                document.getElementById('retry-manual-loading')?.addEventListener('click', () => {
+                                    // 重新提交表单
+                                    videoForm.dispatchEvent(new Event('submit'));
+                                });
+                                
+                                showToast('视频解析失败，请检查链接或尝试其他视频源', 'warning');
+                            }
+                        }, 15000);
+                    }
+                }, 15000);
+                
+                // 滚动到播放器位置
+                playerContainer.scrollIntoView({ behavior: 'smooth' });
+                
+                // 延迟加载iframe
+                setTimeout(() => {
+                    playerIframe.src = parseUrl;
+                }, 100);
+                
+                // 显示成功消息
+                showToast('视频加载中，请稍候...', 'info');
+                
+            } catch (error) {
+                console.error('解析视频时发生错误:', error);
+                showToast('解析视频失败: ' + error.message, 'danger');
+                
+                // 记录错误到日志
+                logDebug(`解析过程中发生错误: ${error.message}`, 'danger');
+                logDebug(`错误堆栈: ${error.stack}`, 'danger');
+                
+                // 更新播放状态
+                playingTitle.innerHTML = `<span class="text-danger">错误:</span> 视频解析失败`;
+                clearTimeout(playerLoadTimeout);
+                isPlayerLoading = false;
+            }
+        });
+    }
+    
+    // 关闭播放器
+    if (closePlayerBtn) {
+        closePlayerBtn.addEventListener('click', function() {
+            playerContainer.style.display = 'none';
+            playerIframe.src = 'about:blank';
+            clearTimeout(playerLoadTimeout);
+            isPlayerLoading = false;
+        });
+    }
+});
+
+// 显示通知消息
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('.toast-container');
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    const toastBody = document.createElement('div');
+    toastBody.className = 'd-flex';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'toast-body';
+    messageDiv.textContent = message;
+    
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'btn-close btn-close-white me-2 m-auto';
+    closeButton.setAttribute('data-bs-dismiss', 'toast');
+    closeButton.setAttribute('aria-label', '关闭');
+    
+    toastBody.appendChild(messageDiv);
+    toastBody.appendChild(closeButton);
+    toast.appendChild(toastBody);
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast, {
+        delay: 3000
+    });
+    
+    bsToast.show();
+    
+    // 自动删除已关闭的toast元素
+    toast.addEventListener('hidden.bs.toast', function() {
+        toast.remove();
+    });
+}
+
+// 评分函数 - 发送请求到服务器
+function rateMovie(rating) {
+    // 确保评分是有效的数字且在1-10范围内
+    rating = parseInt(rating, 10);
+    if (isNaN(rating) || rating < 1 || rating > 10) {
+        console.error('无效的评分值:', rating);
+        showToast('评分值无效，请重试', 'danger');
+        return;
+    }
+    
+    console.log('准备发送评分请求:', rating);
+    const movieId = '{{ movie.movie_id }}';
+    console.log('电影ID:', movieId);
+    
+    // 发送评分请求
+    fetch(`/movies/rate/${movieId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ rating: rating })
+    })
+    .then(response => {
+        console.log('评分请求响应状态:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('评分请求响应数据:', data);
+        if (data.success) {
+            showToast('评分已保存！', 'success');
+            // 更新data-has-rated属性
+            document.getElementById('user-rating').setAttribute('data-has-rated', 'true');
+        } else {
+            showToast(data.error || '评分失败', 'danger');
+            console.error('评分失败原因:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('评分请求错误:', error);
+        showToast('评分失败，请稍后再试', 'danger');
+    });
+}
+
+// 检查收藏状态
+function checkFavoriteStatus(movieId) {
+    if (!movieId || isNaN(parseInt(movieId))) {
+        console.error('无效的电影ID:', movieId);
+        return;
+    }
+    
+    fetch(`/users/api/check_favorite/${movieId}/`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.is_favorite) {
+            // 已收藏，更新按钮样式
+            const favoriteBtn = document.getElementById('favorite-btn');
+            if (favoriteBtn) {
+                favoriteBtn.classList.add('active');
+                favoriteBtn.innerHTML = '<i class="mdi mdi-heart"></i> 已收藏';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('检查收藏状态错误:', error);
+    });
+}
+
+// 切换收藏状态
+function toggleFavorite(movieId) {
+    fetch(`/users/favorite/${movieId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const favoriteBtn = document.getElementById('favorite-btn');
+            if (favoriteBtn) {
+                if (data.is_favorite) {
+                    favoriteBtn.classList.add('active');
+                    favoriteBtn.innerHTML = '<i class="mdi mdi-heart"></i> 已收藏';
+                    showToast('电影已收藏', 'success');
+                } else {
+                    favoriteBtn.classList.remove('active');
+                    favoriteBtn.innerHTML = '<i class="mdi mdi-heart-outline"></i> 收藏电影';
+                    showToast('已取消收藏', 'info');
+                }
+            }
+        } else {
+            showToast(data.error || '操作失败', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('收藏操作错误:', error);
+        showToast('操作失败，请稍后再试', 'danger');
+    });
+}
+</script>
+{% endblock %} 

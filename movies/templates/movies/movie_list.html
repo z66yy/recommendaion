@@ -1,0 +1,9 @@
+{% for movie in movies %}
+<div class="movie-card">
+    <div class="movie-poster">
+        <img src="{% url 'image_proxy' movie.image_url %}?local=true&title={{ movie.title|urlencode }}" 
+             alt="{{ movie.title }}" loading="lazy">
+    </div>
+    // ... existing code ...
+</div>
+{% endfor %} 

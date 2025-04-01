@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}我的收藏 | 电影推荐系统{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">我的收藏</h1>
+    
+    {% if favorites %}
+    <div class="row">
+        {% for favorite in favorites %}
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">
+            <div class="card h-100">
+                <div class="card-img-top bg-light text-center" style="height: 300px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-film fa-3x text-secondary"></i>
+                </div>
+                
+                <div class="card-body">
+                    <h5 class="card-title">{{ favorite.movie_title }}</h5>
+                    
+                    <div class="mb-2">
+                        <div class="rating-stars">
+                            {% for i in "12345" %}
+                            <span class="star {% if forloop.counter <= favorite.rating|floatformat:0|add:'0' %}filled{% endif %}">★</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div>上映: {{ favorite.year }}年</div>
+                    <div>类型: 
+                        {% for genre in favorite.genres %}
+                        <span class="badge bg-primary me-1">{{ genre }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mt-2 text-muted">
+                        收藏于: {{ favorite.created_time|date:"Y-m-d H:i" }}
+                    </div>
+                </div>
+                
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'movies:movie_detail' favorite.movie_id %}" class="btn btn-primary btn-sm">
+                            查看详情
+                        </a>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="toggleFavorite({{ favorite.movie_id }})">
+                            <i class="fas fa-heart"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row justify-content-center" style="height: 400px;">
+        <div class="col-12 text-center my-auto">
+            <i class="far fa-heart fa-4x text-secondary mb-3"></i>
+            <h5 class="text-muted">暂无收藏电影</h5>
+            <a href="{% url 'movies:movie_list' %}" class="btn btn-primary mt-3">
+                去找电影
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .rating-stars {
+        display: inline-block;
+    }
+    .star {
+        color: #ccc;
+        font-size: 20px;
+    }
+    .star.filled {
+        color: #FFD700;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleFavorite(movieId) {
+    fetch(`/users/favorite/${movieId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 刷新页面以更新收藏列表
+            window.location.reload();
+        } else {
+            alert('操作失败，请稍后重试');
+        }
+    });
+}
+</script>
+{% endblock %}

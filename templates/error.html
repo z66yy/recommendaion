@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}服务器错误{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h1 class="card-title">服务器临时故障</h1>
+                    <p class="card-text">
+                        {{ error_message|default:"系统当前正忙，请稍后再试。" }}
+                    </p>
+                    <p class="text-muted mt-3">
+                        错误代码：DATABASE_CONNECTION_ERROR
+                    </p>
+                    <a href="/" class="btn btn-primary mt-3">返回首页</a>
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            如果问题持续存在，请稍后再试或联系网站管理员。
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
