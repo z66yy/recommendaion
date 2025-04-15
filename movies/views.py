@@ -834,7 +834,7 @@ def movie_list(request):
             movie['genres'] = []
     
     # 分页处理 - 减少每页显示数量
-    paginator = Paginator(movies, 12)  # 每页显示12部电影
+    paginator = Paginator(movies, 15)  # 每页显示15部电影，这样一行5部电影可以显示3行
     try:
         movies_page = paginator.page(page)
     except PageNotAnInteger:
@@ -1730,20 +1730,31 @@ def _get_personalized_recommendations(user_id, limit=6):
     recommendations = []
     
     try:
-        # 1. 获取用户评分过或收藏的电影
+        # 1. 获取用户评分过和收藏的电影
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT movie_id, rating
-                FROM users_userrating
-                WHERE user_id = %s
+                SELECT 
+                    COALESCE(r.movie_id, f.movie_id) as movie_id,
+                    COALESCE(r.rating, 7.0) as rating  -- 收藏但未评分的电影默认给7分权重
+                FROM (
+                    SELECT movie_id, rating
+                    FROM users_userrating
+                    WHERE user_id = %s
+                    UNION
+                    SELECT movie_id, 7.0 as rating
+                    FROM users_userfavorite
+                    WHERE user_id = %s
+                ) as combined_data
+                LEFT JOIN users_userrating r ON combined_data.movie_id = r.movie_id AND r.user_id = %s
+                LEFT JOIN users_userfavorite f ON combined_data.movie_id = f.movie_id AND f.user_id = %s
                 ORDER BY rating DESC
                 LIMIT 10
-            """, [user_id])
+            """, [user_id, user_id, user_id, user_id])
             
             rated_movies = dictfetchall(cursor)
             
         if not rated_movies:
-            # 如果用户没有评分过电影，返回热门电影
+            # 如果用户没有评分过或收藏电影，返回热门电影
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT m.movie_id, m.title, m.year, m.genres, 
@@ -1758,19 +1769,23 @@ def _get_personalized_recommendations(user_id, limit=6):
                 return [_process_movie_data(movie) for movie in popular_movies]
         
         # 2. 使用相似度计算从推荐系统中获取推荐电影
-        # 获取用户已评分电影的ID列表
+        # 获取用户已评分和收藏电影的ID列表
         rated_movie_ids = [movie['movie_id'] for movie in rated_movies]
         rated_movie_ids_str = ','.join([str(id) for id in rated_movie_ids])
         
         if rated_movie_ids:
-            # 查询与已评分电影相似的电影
+            # 查询与已评分/收藏电影相似的电影，排除剧情片的权重
             with connection.cursor() as cursor:
                 cursor.execute(f"""
                     SELECT 
                         m.movie_id, m.title, m.year, m.genres, 
                         m.tags, m.images, m.directors, m.actor,
                         IFNULL(mr.rating, 0) as avg_rating,
-                        ms.similarity
+                        ms.similarity,
+                        CASE 
+                            WHEN m.genres LIKE '%剧情%' THEN ms.similarity * 0.7  -- 降低剧情片的相似度权重
+                            ELSE ms.similarity
+                        END as adjusted_similarity
                     FROM movie_collectmoviedb m
                     LEFT JOIN movie_movieratingdb mr ON m.movie_id = mr.movie_id_id
                     LEFT JOIN recommender_moviesimilarity ms ON 
@@ -1778,7 +1793,7 @@ def _get_personalized_recommendations(user_id, limit=6):
                         (ms.movie2_id = m.movie_id AND ms.movie1_id IN ({rated_movie_ids_str}))
                     WHERE m.movie_id NOT IN ({rated_movie_ids_str}) 
                     GROUP BY m.movie_id
-                    ORDER BY ms.similarity DESC, m.collect_count DESC
+                    ORDER BY adjusted_similarity DESC, m.collect_count DESC
                     LIMIT 20
                 """)
                 
@@ -1794,15 +1809,27 @@ def _get_personalized_recommendations(user_id, limit=6):
         
         # 3. 如果没有找到相似电影或没有相似度数据，基于用户喜欢的类型推荐
         with connection.cursor() as cursor:
-            # 获取用户喜欢的电影类型
+            # 获取用户喜欢的电影类型，降低剧情类型的权重
             cursor.execute("""
-                SELECT DISTINCT m.genres
-                FROM movie_collectmoviedb m
-                JOIN users_userrating ur ON m.movie_id = ur.movie_id
-                WHERE ur.user_id = %s AND ur.rating >= 7
-                ORDER BY ur.rating DESC
+                WITH user_genres AS (
+                    SELECT DISTINCT m.genres
+                    FROM movie_collectmoviedb m
+                    LEFT JOIN users_userrating ur ON m.movie_id = ur.movie_id
+                    LEFT JOIN users_userfavorite uf ON m.movie_id = uf.movie_id
+                    WHERE (ur.user_id = %s AND ur.rating >= 7)
+                       OR uf.user_id = %s
+                    ORDER BY ur.rating DESC
+                    LIMIT 5
+                )
+                SELECT genres
+                FROM user_genres
+                WHERE genres NOT LIKE '%剧情%'
+                UNION ALL
+                SELECT genres
+                FROM user_genres
+                WHERE genres LIKE '%剧情%'
                 LIMIT 5
-            """, [user_id])
+            """, [user_id, user_id])
             
             user_genres_data = dictfetchall(cursor)
             
@@ -1817,13 +1844,17 @@ def _get_personalized_recommendations(user_id, limit=6):
                     logger.error(f"解析类型数据出错: {str(e)}")
             
             if user_genres:
-                # 构建类型查询条件
+                # 构建类型查询条件，降低剧情类型的权重
                 genre_conditions = []
                 genre_params = []
                 
                 for genre in user_genres:
-                    genre_conditions.append("m.genres LIKE %s")
-                    genre_params.append(f"%{genre}%")
+                    if genre != '剧情':  # 对非剧情类型使用正常权重
+                        genre_conditions.append("m.genres LIKE %s")
+                        genre_params.append(f"%{genre}%")
+                    else:  # 对剧情类型使用较低权重
+                        genre_conditions.append("(m.genres LIKE %s AND m.genres NOT REGEXP '^剧情$')")
+                        genre_params.append(f"%{genre}%")
                 
                 genre_query = " OR ".join(genre_conditions)
                 
@@ -1836,13 +1867,20 @@ def _get_personalized_recommendations(user_id, limit=6):
                     WHERE ({genre_query})
                     AND m.movie_id NOT IN (
                         SELECT movie_id FROM users_userrating WHERE user_id = %s
+                        UNION
+                        SELECT movie_id FROM users_userfavorite WHERE user_id = %s
                     )
-                    ORDER BY mr.rating DESC, m.collect_count DESC
+                    ORDER BY 
+                        CASE 
+                            WHEN m.genres LIKE '%剧情%' THEN mr.rating * 0.7
+                            ELSE mr.rating 
+                        END DESC,
+                        m.collect_count DESC
                     LIMIT %s
                 """
                 
                 # 添加参数
-                query_params = genre_params + [user_id, limit]
+                query_params = genre_params + [user_id, user_id, limit]
                 
                 # 执行查询
                 cursor.execute(query, query_params)
