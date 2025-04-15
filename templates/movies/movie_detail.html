@@ -377,34 +377,6 @@
                                 </button>
                             </div>
                         </div>
-
-                        <!-- 直接解析区域 -->
-                        <div class="direct-parse mt-4">
-                            <div class="alert alert-light border">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <h5 class="mb-0"><i class="mdi mdi-lightning-bolt-outline text-warning me-2"></i>一键播放</h5>
-                                    <span class="badge bg-primary">推荐</span>
-                                </div>
-                                <p class="text-muted small mb-3">
-                                    尝试自动搜索并播放《{{ movie.title }}》，无需手动搜索和复制链接。
-                                </p>
-                                <div class="d-flex flex-wrap gap-2">
-                                    <button id="auto-play-iqiyi" class="btn btn-sm btn-primary auto-play-btn" data-site="iqiyi">
-                                        爱奇艺一键播放
-                                    </button>
-                                    <button id="auto-play-qq" class="btn btn-sm btn-primary auto-play-btn" data-site="qq">
-                                        腾讯视频一键播放
-                                    </button>
-                                    <button id="auto-play-youku" class="btn btn-sm btn-primary auto-play-btn" data-site="youku">
-                                        优酷一键播放
-                                    </button>
-                                </div>
-                                <div class="mt-2 small text-danger">
-                                    <i class="mdi mdi-information-outline me-1"></i>
-                                    注意：一键播放功能可能不适用于所有影片，如遇问题请使用上方的搜索功能。
-                                </div>
-                            </div>
-                        </div>
                     </div>
                     
                     <div id="player-container" style="display: none;">
@@ -460,97 +432,279 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
+<!-- 添加观看时间记录的JavaScript代码 -->
 <script>
-// 确保DOM加载完成后执行
-document.addEventListener('DOMContentLoaded', function() {
-    // 图片懒加载
-    const loadImages = () => {
-        if ('IntersectionObserver' in window) {
-            const loadImage = (imageElement) => {
-                const src = imageElement.getAttribute('data-src');
-                if (!src) return;
-                
-                imageElement.src = src;
-                imageElement.style.display = 'block';
-                
-                imageElement.onload = function() {
-                    // 图片加载完成后，移除占位符并添加loaded类
-                    imageElement.classList.add('loaded');
-                    const placeholderElement = imageElement.parentNode.querySelector('.poster-placeholder');
-                    if (placeholderElement) {
-                        placeholderElement.style.display = 'none';
-                    }
+    // 视频播放和快捷搜索功能
+    document.addEventListener('DOMContentLoaded', function() {
+        // 图片懒加载
+        const loadImages = () => {
+            if ('IntersectionObserver' in window) {
+                const loadImage = (imageElement) => {
+                    const src = imageElement.getAttribute('data-src');
+                    if (!src) return;
+                    
+                    imageElement.src = src;
+                    imageElement.style.display = 'block';
+                    
+                    imageElement.onload = function() {
+                        imageElement.classList.add('loaded');
+                        const placeholderElement = imageElement.parentNode.querySelector('.poster-placeholder');
+                        if (placeholderElement) {
+                            placeholderElement.style.display = 'none';
+                        }
+                    };
                 };
-            };
-            
-            const imgObserver = new IntersectionObserver((entries, observer) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const img = entry.target;
-                        loadImage(img);
-                        observer.unobserve(img);
-                    }
+                
+                const imgObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            loadImage(img);
+                            observer.unobserve(img);
+                        }
+                    });
+                }, {
+                    rootMargin: '50px 0px',
+                    threshold: 0.1
                 });
-            }, {
-                rootMargin: '50px 0px',
-                threshold: 0.1
+                
+                const lazyImages = document.querySelectorAll('.fade-in-image');
+                lazyImages.forEach(img => imgObserver.observe(img));
+            } else {
+                const lazyImages = document.querySelectorAll('.fade-in-image');
+                lazyImages.forEach(img => {
+                    img.src = img.getAttribute('data-src');
+                    img.style.display = 'block';
+                    img.onload = function() {
+                        img.classList.add('loaded');
+                        const placeholder = img.parentNode.querySelector('.poster-placeholder');
+                        if (placeholder) {
+                            placeholder.style.display = 'none';
+                        }
+                    };
+                });
+            }
+        };
+        
+        loadImages();
+        
+        // 评分功能
+        const stars = document.querySelectorAll('.rating-stars .star');
+        const ratingDisplay = document.getElementById('rating-display');
+        const ratingContainer = document.getElementById('user-rating');
+        const movieId = '{{ movie.movie_id }}';
+        
+        stars.forEach(star => {
+            star.addEventListener('click', function() {
+                const ratingValue = parseInt(this.getAttribute('data-rating'), 10);
+                console.log('点击了星星，评分值:', ratingValue);
+                
+                if (isNaN(ratingValue)) {
+                    console.error('无效的评分值:', this.getAttribute('data-rating'));
+                    return;
+                }
+                
+                setRating(ratingValue);
             });
-            
-            // 获取所有需要懒加载的图片
-            const lazyImages = document.querySelectorAll('.fade-in-image');
-            lazyImages.forEach(img => imgObserver.observe(img));
-        } else {
-            // 如果浏览器不支持IntersectionObserver，退回到传统方法
-            const lazyImages = document.querySelectorAll('.fade-in-image');
-            lazyImages.forEach(img => {
-                img.src = img.getAttribute('data-src');
-                img.style.display = 'block';
-                img.onload = function() {
-                    img.classList.add('loaded');
-                    const placeholder = img.parentNode.querySelector('.poster-placeholder');
-                    if (placeholder) {
-                        placeholder.style.display = 'none';
-                    }
-                };
+        });
+        
+        // 检查收藏状态
+        checkFavoriteStatus(movieId);
+        
+        // 视频播放功能
+        const videoForm = document.getElementById('video-parser-form');
+        const videoUrlInput = document.getElementById('video-url');
+        const playerContainer = document.getElementById('player-container');
+        const playerIframe = document.getElementById('player-iframe');
+        const playingTitle = document.querySelector('.playing-title');
+        const closePlayerBtn = document.getElementById('close-player');
+        
+        // 视频解析API地址
+        const videoParserUrl = 'https://jx.973973.xyz/?url=';
+        
+        // 处理视频表单提交
+        if (videoForm) {
+            videoForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const videoUrl = videoUrlInput.value.trim();
+                if (!videoUrl) {
+                    showToast('请输入视频链接', 'warning');
+                    return;
+                }
+                
+                // 显示播放器
+                playerContainer.style.display = 'block';
+                
+                // 设置播放状态提示
+                playingTitle.innerHTML = `<span class="text-primary">正在加载视频...</span> <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
+                
+                try {
+                    // 构建解析URL
+                    const parseUrl = videoParserUrl + encodeURIComponent(videoUrl);
+                    
+                    // 设置iframe src
+                    playerIframe.src = parseUrl;
+                    
+                    // 监听iframe加载完成
+                    playerIframe.onload = function() {
+                        playingTitle.innerHTML = `<span class="text-success">正在播放:</span> {{ movie.title }}`;
+                        // 滚动到播放器位置
+                        playerContainer.scrollIntoView({ behavior: 'smooth' });
+                        // 开始记录观看时间
+                        startWatching();
+                    };
+                    
+                    // 清空输入框
+                    videoUrlInput.value = '';
+                    
+                    showToast('视频加载中，请稍候...', 'info');
+                    
+                } catch (error) {
+                    console.error('解析视频时出错:', error);
+                    playingTitle.innerHTML = `<span class="text-danger">解析视频失败</span>`;
+                    showToast('解析视频失败，请检查链接是否正确', 'danger');
+                }
             });
         }
-    };
-    
-    // 加载图片
-    loadImages();
-    
-    // 定义变量
-    const stars = document.querySelectorAll('.rating-stars .star');
-    const ratingDisplay = document.getElementById('rating-display');
-    const ratingContainer = document.getElementById('user-rating');
-    const movieId = '{{ movie.movie_id }}';
-    
-    // 为每个星星添加点击事件
-    stars.forEach(star => {
-        star.addEventListener('click', function() {
-            // 获取评分值（1-10）
-            const ratingValue = parseInt(this.getAttribute('data-rating'), 10);
-            console.log('点击了星星，评分值:', ratingValue);
-            
-            if (isNaN(ratingValue)) {
-                console.error('无效的评分值:', this.getAttribute('data-rating'));
-                return;
-            }
-            
-            // 设置评分
-            setRating(ratingValue);
+        
+        // 关闭播放器
+        if (closePlayerBtn) {
+            closePlayerBtn.addEventListener('click', function() {
+                stopWatching();  // 停止记录观看时间
+                playerContainer.style.display = 'none';
+                playerIframe.src = 'about:blank';
+                playingTitle.innerHTML = '';
+            });
+        }
+        
+        // 快捷搜索功能
+        const searchUrlTemplates = {
+            'iqiyi': 'https://so.iqiyi.com/so/q_{title}',
+            'qq': 'https://v.qq.com/x/search/?q={title}',
+            'youku': 'https://so.youku.com/search_video/q_{title}',
+            'mgtv': 'https://so.mgtv.com/so/k-{title}',
+            '1905': 'https://www.1905.com/search/?q={title}'
+        };
+        
+        const quickSearchButtons = document.querySelectorAll('.quick-search-btn');
+        const movieTitle = '{{ movie.title }}';
+        
+        quickSearchButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const site = this.getAttribute('data-site');
+                const searchUrlTemplate = searchUrlTemplates[site];
+                
+                if (searchUrlTemplate) {
+                    const searchUrl = searchUrlTemplate.replace('{title}', encodeURIComponent(movieTitle));
+                    window.open(searchUrl, '_blank');
+                }
+            });
         });
     });
     
-    // 检查电影是否被收藏
-    checkFavoriteStatus(movieId);
+    // 观看时间记录功能
+    let startTime = null;
+    let watchDuration = 0;
     
-    // 设置评分的函数 - 仅处理UI更新
+    function startWatching() {
+        startTime = new Date();
+        console.log('开始观看:', startTime);
+    }
+    
+    function stopWatching() {
+        if (startTime) {
+            const endTime = new Date();
+            const duration = Math.round((endTime - startTime) / (1000 * 60)); // 转换为分钟
+            watchDuration += duration;
+            
+            // 发送观看记录到服务器
+            fetch(`{% url 'users:record_watch_time' movie.movie_id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: `duration=${watchDuration}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('观看记录已保存');
+                } else {
+                    console.error('保存观看记录失败:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('保存观看记录出错:', error);
+            });
+            
+            startTime = null;
+            watchDuration = 0;
+        }
+    }
+    
+    // 获取CSRF Token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Toast通知功能
+    function showToast(message, type = 'success') {
+        const toastContainer = document.querySelector('.toast-container');
+        
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        const toastBody = document.createElement('div');
+        toastBody.className = 'd-flex';
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'toast-body';
+        messageDiv.textContent = message;
+        
+        const closeButton = document.createElement('button');
+        closeButton.type = 'button';
+        closeButton.className = 'btn-close btn-close-white me-2 m-auto';
+        closeButton.setAttribute('data-bs-dismiss', 'toast');
+        closeButton.setAttribute('aria-label', '关闭');
+        
+        toastBody.appendChild(messageDiv);
+        toastBody.appendChild(closeButton);
+        toast.appendChild(toastBody);
+        toastContainer.appendChild(toast);
+        
+        const bsToast = new bootstrap.Toast(toast, {
+            delay: 3000
+        });
+        
+        bsToast.show();
+        
+        toast.addEventListener('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
+    
+    // 评分功能
     function setRating(rating) {
-        // 更新星星显示
+        const stars = document.querySelectorAll('.rating-stars .star');
+        const ratingDisplay = document.getElementById('rating-display');
+        
         stars.forEach(star => {
             const starValue = parseInt(star.getAttribute('data-rating'), 10);
             if (starValue <= rating) {
@@ -560,590 +714,116 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // 更新评分显示
         if (ratingDisplay) {
             ratingDisplay.textContent = rating;
         }
         
-        // 发送评分请求
         rateMovie(rating);
     }
     
-    // 视频播放功能
-    const videoForm = document.getElementById('video-parser-form');
-    const videoUrlInput = document.getElementById('video-url');
-    const playerContainer = document.getElementById('player-container');
-    const playerIframe = document.getElementById('player-iframe');
-    const playingTitle = document.querySelector('.playing-title');
-    const closePlayerBtn = document.getElementById('close-player');
-    
-    // 视频解析API地址 - 更新为更稳定的解析接口
-    const videoParserUrl = 'https://jx.playerjy.com/?url=';
-    // 备用解析接口
-    const backupParserUrls = [
-        'https://jx.973973.xyz/?url=',
-        'https://jx.bozrc.com:4433/player/?url=',
-        'https://jx.parwix.com:4433/player/?url='
-    ];
-    
-    // 当前使用的解析接口索引
-    let currentParserIndex = 0;
-    
-    // 获取下一个解析URL
-    function getNextParserUrl() {
-        currentParserIndex = (currentParserIndex + 1) % backupParserUrls.length;
-        return backupParserUrls[currentParserIndex];
-    }
-    
-    // URL模板定义
-    const searchUrlTemplates = {
-        'iqiyi': 'https://so.iqiyi.com/so/q_{title}_{year}',
-        'qq': 'https://v.qq.com/x/search/?q={title}+{year}',
-        'youku': 'https://so.youku.com/search_video/q_{title}_{year}',
-        'mgtv': 'https://so.mgtv.com/so/k-{title}',
-        '1905': 'https://www.1905.com/search/?q={title}'
-    };
-    
-    // 直接播放页面的URL模板 (理想情况下)
-    const playUrlTemplates = {
-        'iqiyi': 'https://www.iqiyi.com/v_{id}.html',
-        'qq': 'https://v.qq.com/x/cover/{id}.html',
-        'youku': 'https://v.youku.com/v_show/id_{id}.html',
-        'other': '{url}'
-    };
-    
-    // 快捷搜索功能
-    const quickSearchButtons = document.querySelectorAll('.quick-search-btn');
-    const movieTitle = '{{ movie.title }}';
-    const movieYear = '{{ movie.year }}';
-    
-    // 一键播放按钮
-    const autoPlayButtons = document.querySelectorAll('.auto-play-btn');
-    
-    // 播放器加载状态变量
-    let playerLoadTimeout;
-    let isPlayerLoading = false;
-    
-    // 调试日志容器
-    const logContainer = document.createElement('div');
-    logContainer.className = 'log-container mt-3 p-3 border rounded bg-light';
-    logContainer.style.display = 'none';
-    logContainer.innerHTML = '<h6>调试日志:</h6><div id="debug-logs" class="small text-monospace" style="max-height: 200px; overflow-y: auto;"></div>';
-    
-    // 添加调试按钮
-    const debugButton = document.createElement('button');
-    debugButton.className = 'btn btn-sm btn-outline-secondary mt-2';
-    debugButton.innerHTML = '<i class="mdi mdi-bug"></i> 显示调试日志';
-    debugButton.onclick = function() {
-        if (logContainer.style.display === 'none') {
-            logContainer.style.display = 'block';
-            this.innerHTML = '<i class="mdi mdi-bug"></i> 隐藏调试日志';
-        } else {
-            logContainer.style.display = 'none';
-            this.innerHTML = '<i class="mdi mdi-bug"></i> 显示调试日志';
+    function rateMovie(rating) {
+        rating = parseInt(rating, 10);
+        if (isNaN(rating) || rating < 1 || rating > 10) {
+            console.error('无效的评分值:', rating);
+            showToast('评分值无效，请重试', 'danger');
+            return;
         }
-    };
-    
-    // 将日志容器和按钮添加到DOM
-    document.querySelector('.direct-parse').appendChild(debugButton);
-    document.querySelector('.direct-parse').appendChild(logContainer);
-    
-    // 日志函数
-    function logDebug(message, type = 'info') {
-        const logElement = document.getElementById('debug-logs');
-        if (logElement) {
-            const logLine = document.createElement('div');
-            logLine.className = `mb-1 text-${type}`;
-            logLine.innerHTML = `<small>[${new Date().toLocaleTimeString()}] ${message}</small>`;
-            logElement.appendChild(logLine);
-            // 自动滚动到底部
-            logElement.scrollTop = logElement.scrollHeight;
-        }
-        // 同时输出到控制台
-        console.log(`[${type.toUpperCase()}] ${message}`);
-    }
-    
-    // 清除日志
-    function clearLogs() {
-        const logElement = document.getElementById('debug-logs');
-        if (logElement) {
-            logElement.innerHTML = '';
-        }
-    }
-    
-    // 处理一键播放按钮点击
-    autoPlayButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const site = this.getAttribute('data-site');
-            
-            // 清除旧日志
-            clearLogs();
-            logDebug(`点击了一键播放按钮: ${site}`, 'primary');
-            
-            // 显示加载中提示
-            this.disabled = true;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> 搜索中...';
-            
-            // 重置加载状态
-            clearTimeout(playerLoadTimeout);
-            isPlayerLoading = true;
-            
-            // 将平台名称显示为正在解析的平台
-            const platformNames = {
-                'iqiyi': '爱奇艺',
-                'qq': '腾讯视频',
-                'youku': '优酷'
-            };
-            
-            logDebug(`电影标题: "${movieTitle}", 年份: ${movieYear}`, 'info');
-            
-            // 构造一个可能的URL模板
-            const defaultUrlTemplate = playUrlTemplates[site];
-            logDebug(`使用模板: ${defaultUrlTemplate}`, 'info');
-            
-            if (defaultUrlTemplate) {
-                try {
-                    // 修复：更好地处理中文电影名称
-                    // 1. 对于中文电影名称，保留原始名称，只替换空格
-                    // 2. 对于英文电影名称，转为小写并替换特殊字符
-                    let formattedTitle;
-                    
-                    // 检查是否是中文电影名 (含有中文字符)
-                    if (/[\u4e00-\u9fa5]/.test(movieTitle)) {
-                        // 中文名称处理：只去除空格，保留原始中文字符
-                        formattedTitle = movieTitle.trim().replace(/\s+/g, '');
-                        logDebug(`检测到中文标题，处理后: "${formattedTitle}"`, 'info');
-                    } else {
-                        // 英文名称处理：转小写，替换空格为下划线，移除特殊字符
-                        formattedTitle = movieTitle
-                            .replace(/\s+/g, '_')
-                            .replace(/[^\w\s]/gi, '')
-                            .toLowerCase();
-                        logDebug(`检测到英文标题，处理后: "${formattedTitle}"`, 'info');
-                    }
-                    
-                    // 准备URL安全的格式化标题，用于构建URL时确保转义特殊字符
-                    const encodedTitle = encodeURIComponent(formattedTitle);
-                    logDebug(`URL编码后的标题: "${encodedTitle}"`, 'info');
-                    
-                    // 构造解析URL (调整URL构造规则以提高成功率)
-                    let videoUrl;
-                    if (site === 'iqiyi') {
-                        // 爱奇艺特殊处理 - 使用搜索URL
-                        videoUrl = `https://so.iqiyi.com/so/q_${encodedTitle}`;
-                        logDebug(`爱奇艺搜索URL: ${videoUrl}`, 'success');
-                    } else if (site === 'qq') {
-                        // 腾讯视频特殊处理 - 使用搜索URL
-                        videoUrl = `https://v.qq.com/x/search/?q=${encodedTitle}`;
-                        logDebug(`腾讯视频搜索URL: ${videoUrl}`, 'success');
-                    } else if (site === 'youku') {
-                        // 优酷特殊处理 - 使用搜索URL
-                        videoUrl = `https://so.youku.com/search_video/q_${encodedTitle}`;
-                        logDebug(`优酷搜索URL: ${videoUrl}`, 'success');
-                    } else {
-                        // 默认使用模板
-                        videoUrl = defaultUrlTemplate.replace('{title}', encodedTitle);
-                        logDebug(`默认URL: ${videoUrl}`, 'success');
-                    }
-                    
-                    // 构建最终解析URL，使用正确的方式传参给解析服务
-                    const parseUrl = `${videoParserUrl}${encodeURIComponent(videoUrl)}`;
-                    logDebug(`最终解析URL: ${parseUrl}`, 'warning');
-                    
-                    // 添加额外的调试信息以查看编码前后的差异
-                    logDebug(`解码后的URL: ${decodeURIComponent(parseUrl.replace(videoParserUrl, ''))}`, 'info');
-                    
-                    // 在新窗口中打开解析URL (用于调试)
-                    const debugLink = document.createElement('a');
-                    debugLink.href = 'javascript:void(0)';
-                    debugLink.className = 'text-info';
-                    debugLink.innerHTML = '在新窗口打开解析URL';
-                    debugLink.onclick = function() {
-                        window.open(parseUrl, '_blank');
-                    };
-                    document.getElementById('debug-logs').appendChild(debugLink);
-                    
-                    // 显示播放器
-                    playerContainer.style.display = 'block';
-                    
-                    // 设置播放状态提示
-                    playingTitle.innerHTML = `<span class="text-primary">正在加载:</span> ${movieTitle} (${platformNames[site]}) <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
-                    
-                    // 清除旧iframe内容
-                    playerIframe.src = 'about:blank';
-                    
-                    // 添加iframe加载事件
-                    playerIframe.onload = function() {
-                        logDebug('iframe已加载', 'success');
-                        clearTimeout(playerLoadTimeout);
-                        
-                        // 延迟两秒检查视频是否真正加载完成
-                        setTimeout(() => {
-                            if (isPlayerLoading) {
-                                isPlayerLoading = false;
-                                playingTitle.innerHTML = `<span class="text-success">正在播放:</span> ${movieTitle} (${platformNames[site]})`;
-                                logDebug('视频加载完成', 'success');
-                            }
-                        }, 2000);
-                    };
-                    
-                    // 设置加载超时处理
-                    playerLoadTimeout = setTimeout(() => {
-                        if (isPlayerLoading) {
-                            isPlayerLoading = false;
-                            playingTitle.innerHTML = `<span class="text-danger">加载失败:</span> ${movieTitle} (${platformNames[site]}) <button id="retry-loading" class="btn btn-sm btn-outline-primary ms-2">重试</button>`;
-                            
-                            logDebug('视频加载超时', 'danger');
-                            
-                            // 添加重试按钮事件
-                            document.getElementById('retry-loading')?.addEventListener('click', () => {
-                                // 重新加载iframe
-                                logDebug('点击重试按钮', 'info');
-                                playerIframe.src = parseUrl;
-                                isPlayerLoading = true;
-                                playingTitle.innerHTML = `<span class="text-primary">重新加载中:</span> ${movieTitle} (${platformNames[site]}) <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
-                                
-                                // 设置新的超时
-                                clearTimeout(playerLoadTimeout);
-                                playerLoadTimeout = setTimeout(() => {
-                                    if (isPlayerLoading) {
-                                        isPlayerLoading = false;
-                                        playingTitle.innerHTML = `<span class="text-danger">加载失败:</span> ${movieTitle} - 请尝试使用搜索功能`;
-                                        showToast('视频加载失败，请尝试使用搜索功能手动查找视频', 'warning');
-                                        logDebug('重试后仍然加载失败', 'danger');
-                                    }
-                                }, 15000);
-                            });
-                            
-                            showToast('视频解析超时，可能是资源不存在或解析服务器繁忙', 'warning');
-                        }
-                    }, 15000);
-                    
-                    // 滚动到播放器位置
-                    playerContainer.scrollIntoView({ behavior: 'smooth' });
-                    
-                    // 加载到iframe (延迟一点加载以确保DOM更新)
-                    setTimeout(() => {
-                        playerIframe.src = parseUrl;
-                    }, 100);
-                    
-                } catch (error) {
-                    console.error('解析视频时发生错误:', error);
-                    showToast('解析视频失败: ' + error.message, 'danger');
-                    
-                    // 记录错误到日志
-                    logDebug(`解析过程中发生错误: ${error.message}`, 'danger');
-                    logDebug(`错误堆栈: ${error.stack}`, 'danger');
-                    
-                    // 更新播放状态
-                    if (playerContainer.style.display === 'block') {
-                        playingTitle.innerHTML = `<span class="text-danger">错误:</span> 视频解析失败`;
-                    }
-                    
-                    clearTimeout(playerLoadTimeout);
-                    isPlayerLoading = false;
-                }
-                
-                // 恢复按钮状态
-                setTimeout(() => {
-                    this.disabled = false;
-                    this.innerHTML = platformNames[site] + '一键播放';
-                }, 1500);
-                
+        
+        const movieId = '{{ movie.movie_id }}';
+        
+        fetch(`/movies/rate/${movieId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ rating: rating })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showToast('评分已保存！', 'success');
+                document.getElementById('user-rating').setAttribute('data-has-rated', 'true');
             } else {
-                showToast('不支持该平台的一键播放', 'warning');
-                
-                // 恢复按钮状态
-                this.disabled = false;
-                this.innerHTML = platformNames[site] + '一键播放';
+                showToast(data.error || '评分失败', 'danger');
             }
-        });
-    });
-    
-    // 处理快捷搜索按钮点击
-    quickSearchButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const site = this.getAttribute('data-site');
-            const searchUrlTemplate = searchUrlTemplates[site];
-            
-            if (searchUrlTemplate) {
-                // 替换搜索模板中的{title}和{year}
-                const searchUrl = searchUrlTemplate
-                    .replace('{title}', encodeURIComponent(movieTitle))
-                    .replace('{year}', movieYear);
-                
-                // 在新窗口中打开搜索结果
-                window.open(searchUrl, '_blank');
-            }
-        });
-    });
-    
-    // 处理表单提交
-    if (videoForm) {
-        videoForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const videoUrl = videoUrlInput.value.trim();
-            if (!videoUrl) {
-                showToast('请输入视频链接', 'warning');
-                return;
-            }
-            
-            // 重置加载状态
-            clearTimeout(playerLoadTimeout);
-            isPlayerLoading = true;
-            
-            // 显示播放器
-            playerContainer.style.display = 'block';
-            
-            // 设置播放状态提示
-            playingTitle.innerHTML = `<span class="text-primary">正在加载视频...</span> <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
-            
-            // 清除旧iframe内容
-            playerIframe.src = 'about:blank';
-            
-            try {
-                // 生成解析URL并加载到iframe
-                const parseUrl = videoParserUrl + encodeURIComponent(videoUrl);
-                
-                // 添加iframe加载事件
-                playerIframe.onload = function() {
-                    clearTimeout(playerLoadTimeout);
-                    
-                    // 延迟两秒检查视频是否真正加载完成
-                    setTimeout(() => {
-                        if (isPlayerLoading) {
-                            isPlayerLoading = false;
-                            playingTitle.innerHTML = `<span class="text-success">正在播放:</span> ${movieTitle}`;
-                        }
-                    }, 2000);
-                };
-                
-                // 设置加载超时处理
-                playerLoadTimeout = setTimeout(() => {
-                    if (isPlayerLoading) {
-                        isPlayerLoading = false;
-                        
-                        // 尝试切换解析接口
-                        const nextParserUrl = getNextParserUrl();
-                        const newParseUrl = nextParserUrl + encodeURIComponent(videoUrl);
-                        
-                        playingTitle.innerHTML = `<span class="text-warning">尝试备用解析:</span> ${movieTitle} <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>`;
-                        playerIframe.src = newParseUrl;
-                        
-                        showToast('正在尝试备用解析接口...', 'info');
-                        
-                        // 设置新的超时
-                        clearTimeout(playerLoadTimeout);
-                        playerLoadTimeout = setTimeout(() => {
-                            if (isPlayerLoading) {
-                                isPlayerLoading = false;
-                                playingTitle.innerHTML = `<span class="text-danger">解析失败:</span> 请尝试其他视频链接 <button id="retry-manual-loading" class="btn btn-sm btn-outline-primary ms-2">重试</button>`;
-                                
-                                // 添加重试按钮事件
-                                document.getElementById('retry-manual-loading')?.addEventListener('click', () => {
-                                    // 重新提交表单
-                                    videoForm.dispatchEvent(new Event('submit'));
-                                });
-                                
-                                showToast('视频解析失败，请检查链接或尝试其他视频源', 'warning');
-                            }
-                        }, 15000);
-                    }
-                }, 15000);
-                
-                // 滚动到播放器位置
-                playerContainer.scrollIntoView({ behavior: 'smooth' });
-                
-                // 延迟加载iframe
-                setTimeout(() => {
-                    playerIframe.src = parseUrl;
-                }, 100);
-                
-                // 显示成功消息
-                showToast('视频加载中，请稍候...', 'info');
-                
-            } catch (error) {
-                console.error('解析视频时发生错误:', error);
-                showToast('解析视频失败: ' + error.message, 'danger');
-                
-                // 记录错误到日志
-                logDebug(`解析过程中发生错误: ${error.message}`, 'danger');
-                logDebug(`错误堆栈: ${error.stack}`, 'danger');
-                
-                // 更新播放状态
-                playingTitle.innerHTML = `<span class="text-danger">错误:</span> 视频解析失败`;
-                clearTimeout(playerLoadTimeout);
-                isPlayerLoading = false;
-            }
+        })
+        .catch(error => {
+            console.error('评分请求错误:', error);
+            showToast('评分失败，请稍后再试', 'danger');
         });
     }
     
-    // 关闭播放器
-    if (closePlayerBtn) {
-        closePlayerBtn.addEventListener('click', function() {
-            playerContainer.style.display = 'none';
-            playerIframe.src = 'about:blank';
-            clearTimeout(playerLoadTimeout);
-            isPlayerLoading = false;
-        });
-    }
-});
-
-// 显示通知消息
-function showToast(message, type = 'success') {
-    const toastContainer = document.querySelector('.toast-container');
-    
-    const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-white bg-${type} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.setAttribute('aria-live', 'assertive');
-    toast.setAttribute('aria-atomic', 'true');
-    
-    const toastBody = document.createElement('div');
-    toastBody.className = 'd-flex';
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'toast-body';
-    messageDiv.textContent = message;
-    
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.className = 'btn-close btn-close-white me-2 m-auto';
-    closeButton.setAttribute('data-bs-dismiss', 'toast');
-    closeButton.setAttribute('aria-label', '关闭');
-    
-    toastBody.appendChild(messageDiv);
-    toastBody.appendChild(closeButton);
-    toast.appendChild(toastBody);
-    toastContainer.appendChild(toast);
-    
-    const bsToast = new bootstrap.Toast(toast, {
-        delay: 3000
-    });
-    
-    bsToast.show();
-    
-    // 自动删除已关闭的toast元素
-    toast.addEventListener('hidden.bs.toast', function() {
-        toast.remove();
-    });
-}
-
-// 评分函数 - 发送请求到服务器
-function rateMovie(rating) {
-    // 确保评分是有效的数字且在1-10范围内
-    rating = parseInt(rating, 10);
-    if (isNaN(rating) || rating < 1 || rating > 10) {
-        console.error('无效的评分值:', rating);
-        showToast('评分值无效，请重试', 'danger');
-        return;
-    }
-    
-    console.log('准备发送评分请求:', rating);
-    const movieId = '{{ movie.movie_id }}';
-    console.log('电影ID:', movieId);
-    
-    // 发送评分请求
-    fetch(`/movies/rate/${movieId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify({ rating: rating })
-    })
-    .then(response => {
-        console.log('评分请求响应状态:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP错误: ${response.status}`);
+    // 收藏功能
+    function checkFavoriteStatus(movieId) {
+        if (!movieId || isNaN(parseInt(movieId))) {
+            console.error('无效的电影ID:', movieId);
+            return;
         }
-        return response.json();
-    })
-    .then(data => {
-        console.log('评分请求响应数据:', data);
-        if (data.success) {
-            showToast('评分已保存！', 'success');
-            // 更新data-has-rated属性
-            document.getElementById('user-rating').setAttribute('data-has-rated', 'true');
-        } else {
-            showToast(data.error || '评分失败', 'danger');
-            console.error('评分失败原因:', data.error);
-        }
-    })
-    .catch(error => {
-        console.error('评分请求错误:', error);
-        showToast('评分失败，请稍后再试', 'danger');
-    });
-}
-
-// 检查收藏状态
-function checkFavoriteStatus(movieId) {
-    if (!movieId || isNaN(parseInt(movieId))) {
-        console.error('无效的电影ID:', movieId);
-        return;
-    }
-    
-    fetch(`/users/api/check_favorite/${movieId}/`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP错误: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.is_favorite) {
-            // 已收藏，更新按钮样式
-            const favoriteBtn = document.getElementById('favorite-btn');
-            if (favoriteBtn) {
-                favoriteBtn.classList.add('active');
-                favoriteBtn.innerHTML = '<i class="mdi mdi-heart"></i> 已收藏';
+        
+        fetch(`/users/api/check_favorite/${movieId}/`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
             }
-        }
-    })
-    .catch(error => {
-        console.error('检查收藏状态错误:', error);
-    });
-}
-
-// 切换收藏状态
-function toggleFavorite(movieId) {
-    fetch(`/users/favorite/${movieId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const favoriteBtn = document.getElementById('favorite-btn');
-            if (favoriteBtn) {
-                if (data.is_favorite) {
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.is_favorite) {
+                const favoriteBtn = document.getElementById('favorite-btn');
+                if (favoriteBtn) {
                     favoriteBtn.classList.add('active');
                     favoriteBtn.innerHTML = '<i class="mdi mdi-heart"></i> 已收藏';
-                    showToast('电影已收藏', 'success');
-                } else {
-                    favoriteBtn.classList.remove('active');
-                    favoriteBtn.innerHTML = '<i class="mdi mdi-heart-outline"></i> 收藏电影';
-                    showToast('已取消收藏', 'info');
                 }
             }
-        } else {
-            showToast(data.error || '操作失败', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('收藏操作错误:', error);
-        showToast('操作失败，请稍后再试', 'danger');
-    });
-}
+        })
+        .catch(error => {
+            console.error('检查收藏状态错误:', error);
+        });
+    }
+    
+    function toggleFavorite(movieId) {
+        fetch(`/users/favorite/${movieId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const favoriteBtn = document.getElementById('favorite-btn');
+                if (favoriteBtn) {
+                    if (data.is_favorite) {
+                        favoriteBtn.classList.add('active');
+                        favoriteBtn.innerHTML = '<i class="mdi mdi-heart"></i> 已收藏';
+                        showToast('电影已收藏', 'success');
+                    } else {
+                        favoriteBtn.classList.remove('active');
+                        favoriteBtn.innerHTML = '<i class="mdi mdi-heart-outline"></i> 收藏电影';
+                        showToast('已取消收藏', 'info');
+                    }
+                }
+            } else {
+                showToast(data.error || '操作失败', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('收藏操作错误:', error);
+            showToast('操作失败，请稍后再试', 'danger');
+        });
+    }
 </script>
 {% endblock %} 

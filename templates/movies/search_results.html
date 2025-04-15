@@ -37,6 +37,7 @@
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
 }
 .film-card:hover {
     transform: translateY(-5px);
@@ -50,8 +51,11 @@
 /* 占位符样式 */
 .poster-placeholder {
     background-color: #e0e0e0;
-    position: relative;
-    overflow: hidden;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
 }
 .poster-placeholder::after {
     content: '';
@@ -67,22 +71,35 @@
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
 }
-.compact-card .card-body {
-    padding: 0.75rem;
-}
-.compact-card .card-title {
-    font-size: 1rem;
-    margin-bottom: 0.25rem;
-    white-space: nowrap;
+.poster-container {
+    position: relative;
+    padding-top: 150%; /* 保持3:2的宽高比 */
     overflow: hidden;
-    text-overflow: ellipsis;
 }
-.compact-card .star-rating {
-    font-size: 0.85rem;
+.card-img-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
-.compact-card .card-text {
+.card-body {
+    padding: 1rem;
+    background: #fff;
+}
+.card-title {
+    font-size: 0.9rem;
     margin-bottom: 0.5rem;
-    font-size: 0.85rem;
+    line-height: 1.2;
+    height: 2.4em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.star-rating {
+    font-size: 0.8rem;
 }
 .search-header {
     background-color: #f8f9fa;
@@ -90,6 +107,38 @@
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+/* 修改网格布局样式 */
+.row {
+    margin-right: -10px;
+    margin-left: -10px;
+}
+
+.col {
+    padding-right: 10px;
+    padding-left: 10px;
+}
+
+/* 确保每行5列的布局 */
+@media (min-width: 992px) {
+    .row-cols-lg-5 > * {
+        flex: 0 0 20%;
+        max-width: 20%;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .row-cols-md-3 > * {
+        flex: 0 0 33.333333%;
+        max-width: 33.333333%;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .row-cols-sm-2 > * {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
 }
 </style>
 {% endblock %}
@@ -115,29 +164,21 @@
     </div>
     
     <!-- 电影网格 -->
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3">
         {% for movie in movies %}
-        <div class="col">
-            <div class="card film-card compact-card h-100">
+        <div class="col mb-4">
+            <div class="card film-card h-100">
                 <a href="{% url 'movies:movie_detail' movie.movie_id %}" class="text-decoration-none">
-                    {% if movie.cover_image %}
-                    <div class="poster-container" style="height: 250px;">
-                        <div class="poster-placeholder" style="height: 100%; width: 100%;"></div>
+                    <div class="poster-container">
+                        <div class="poster-placeholder" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
                         <img 
                             src="{% url 'movies:image_proxy' movie.cover_image|urlencode %}?local=true&title={{ movie.title|urlencode }}&movie_id={{ movie.movie_id }}" 
                             alt="{{ movie.title }}"
-                            style="height: 250px; object-fit: cover; width: 100%;"
-                            class="fade-in-image"
+                            class="card-img-top fade-in-image"
                             data-default="{% url 'movies:image_proxy' 'default'|urlencode %}?title={{ movie.title|urlencode }}"
                             onload="this.classList.add('loaded')"
                             onerror="this.onerror=null; this.src=this.getAttribute('data-default')">
                     </div>
-                    {% else %}
-                    <div class="default-poster" style="height: 250px;">
-                        <div class="movie-title">{{ movie.title }}</div>
-                        <div class="movie-year">{{ movie.year }}</div>
-                    </div>
-                    {% endif %}
                 </a>
                 <div class="card-body">
                     <h5 class="card-title" title="{{ movie.title }}">{{ movie.title }}</h5>
@@ -155,7 +196,7 @@
                         <span class="ms-1 text-muted">{{ movie.rating|default:0 }}</span>
                         {% endwith %}
                     </div>
-                    <p class="card-text text-muted">{{ movie.year }}</p>
+                    <p class="card-text text-muted mb-0">{{ movie.year }}</p>
                 </div>
             </div>
         </div>
